@@ -1,0 +1,241 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+
+env:
+  CLASP_VERSION: '3.4.1'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main
+        run: |
+          test "$GITHUB_REF_NAME" = "main" || {
+            echo "::error::Publish release must be run from main"
+            exit 1
+          }
+
+      - name: Check out selected release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Lock release commit
+        id: source
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          RELEASE_SHA="$(git rev-parse HEAD)"
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$RELEASE_SHA" = "$MAIN_SHA" || {
+            echo "::error::main moved after this workflow started; run Publish release again"
+            exit 1
+          }
+          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve successful CI run
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.source.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          CI_RUN_ID="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f branch=main \
+            -f event=push \
+            -f status=success \
+            -f head_sha="$RELEASE_SHA" \
+            -f per_page=100 \
+            --jq '.workflow_runs[0].id // empty')"
+          test -n "$CI_RUN_ID" || {
+            echo "::error::No successful main CI run found for $RELEASE_SHA"
+            exit 1
+          }
+          echo "run_id=$CI_RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download validated release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: importjson-release-candidate
+          path: release-assets
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.ci.outputs.run_id }}
+
+      - name: Validate release assets
+        run: |
+          set -euo pipefail
+          test -f release-assets/importjson-library.gs
+          test -f release-assets/appsscript.json
+          test -f release-assets/ImportJSON.gs
+          test -f release-assets/json-p3-LICENSE
+          test -f release-assets/re2js-LICENSE
+
+      - name: Calculate release version
+        id: plan
+        run: |
+          set -euo pipefail
+          PLAN_JSON="$(node scripts/next-release.mjs)"
+          echo "$PLAN_JSON"
+          TAG_NAME="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).tagName)' "$PLAN_JSON")"
+          VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).version)' "$PLAN_JSON")"
+          MODE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).mode)' "$PLAN_JSON")"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Apps Script project
+        env:
+          APPS_SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "${APPS_SCRIPT_ID:-}" || { echo "::error::Repository variable APPS_SCRIPT_ID is not configured"; exit 1; }
+          test -n "${CLASPRC_JSON:-}" || { echo "::error::Repository secret CLASPRC_JSON is not configured"; exit 1; }
+
+          mkdir -p apps-script "$HOME"
+          cp release-assets/importjson-library.gs apps-script/importjson-library.gs
+          cp release-assets/appsscript.json apps-script/appsscript.json
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          node -e 'const fs=require("fs"); fs.writeFileSync(".clasp.json", JSON.stringify({scriptId: process.argv[1], rootDir: "apps-script"}, null, 2) + "\n")' "$APPS_SCRIPT_ID"
+
+      - name: Publish immutable Apps Script version
+        id: apps-script
+        env:
+          APPS_SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
+          TAG_NAME: ${{ steps.plan.outputs.tag_name }}
+          RELEASE_SHA: ${{ steps.source.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          CLASP="npx --yes @google/clasp@${CLASP_VERSION}"
+          DESCRIPTION="ImportJSON ${TAG_NAME} (${RELEASE_SHA:0:12})"
+
+          assert_main_unchanged() {
+            git fetch origin main
+            MAIN_SHA="$(git rev-parse origin/main)"
+            test "$RELEASE_SHA" = "$MAIN_SHA" || {
+              echo "::error::main moved to $MAIN_SHA before Apps Script publication; run Publish release again"
+              exit 1
+            }
+          }
+
+          VERSIONS_JSON="$($CLASP --json list-versions)"
+          APPS_SCRIPT_VERSION="$(node -e 'const versions=JSON.parse(process.argv[1]); const description=process.argv[2]; const match=versions.find((version) => version.description === description); if (match) process.stdout.write(String(match.versionNumber));' "$VERSIONS_JSON" "$DESCRIPTION")"
+
+          if [ -z "$APPS_SCRIPT_VERSION" ]; then
+            assert_main_unchanged
+            $CLASP push --force
+            assert_main_unchanged
+            VERSION_JSON="$($CLASP --json create-version "$DESCRIPTION")"
+            APPS_SCRIPT_VERSION="$(node -e 'const value=JSON.parse(process.argv[1]).versionNumber; if (!Number.isInteger(value)) process.exit(1); process.stdout.write(String(value));' "$VERSION_JSON")"
+          fi
+
+          echo "version_number=$APPS_SCRIPT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release metadata
+        env:
+          APPS_SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
+          APPS_SCRIPT_VERSION: ${{ steps.apps-script.outputs.version_number }}
+          CI_RUN_ID: ${{ steps.ci.outputs.run_id }}
+          RELEASE_SHA: ${{ steps.source.outputs.release_sha }}
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+          TAG_NAME: ${{ steps.plan.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          (
+            cd release-assets
+            find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > SHA256SUMS
+
+          BUNDLE_SHA256="$(sha256sum release-assets/importjson-library.gs | awk '{print $1}')"
+          MANIFEST_SHA256="$(sha256sum release-assets/appsscript.json | awk '{print $1}')"
+          WRAPPER_SHA256="$(sha256sum release-assets/ImportJSON.gs | awk '{print $1}')"
+
+          node -e '
+            const fs = require("fs");
+            const [tag, version, gitCommit, ciRunId, scriptId, appsScriptVersion, bundleSha256, manifestSha256, wrapperSha256, claspVersion] = process.argv.slice(1);
+            const manifest = {
+              release: tag,
+              version,
+              gitCommit,
+              ciRunId: Number(ciRunId),
+              appsScript: {
+                scriptId,
+                version: Number(appsScriptVersion),
+              },
+              artifacts: {
+                "importjson-library.gs": { sha256: bundleSha256 },
+                "appsscript.json": { sha256: manifestSha256 },
+                "ImportJSON.gs": { sha256: wrapperSha256 },
+              },
+              publisher: {
+                tool: "@google/clasp",
+                version: claspVersion,
+              },
+            };
+            fs.writeFileSync("release-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+          ' "$TAG_NAME" "$RELEASE_VERSION" "$RELEASE_SHA" "$CI_RUN_ID" "$APPS_SCRIPT_ID" "$APPS_SCRIPT_VERSION" "$BUNDLE_SHA256" "$MANIFEST_SHA256" "$WRAPPER_SHA256" "$CLASP_VERSION"
+
+      - name: Create or repair GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.source.outputs.release_sha }}
+          TAG_NAME: ${{ steps.plan.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          ASSETS=(release-assets/* SHA256SUMS release-manifest.json)
+
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            exit 0
+          fi
+
+          if git rev-parse "$TAG_NAME^{commit}" >/dev/null 2>&1; then
+            TAG_SHA="$(git rev-parse "$TAG_NAME^{commit}")"
+            test "$TAG_SHA" = "$RELEASE_SHA" || {
+              echo "::error::$TAG_NAME already points to $TAG_SHA, not $RELEASE_SHA"
+              exit 1
+            }
+            gh release create "$TAG_NAME" "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "$TAG_NAME" \
+              --generate-notes
+          else
+            gh release create "$TAG_NAME" "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$RELEASE_SHA" \
+              --title "$TAG_NAME" \
+              --generate-notes
+          fi
+
+      - name: Summary
+        env:
+          APPS_SCRIPT_VERSION: ${{ steps.apps-script.outputs.version_number }}
+          CI_RUN_ID: ${{ steps.ci.outputs.run_id }}
+          RELEASE_SHA: ${{ steps.source.outputs.release_sha }}
+          TAG_NAME: ${{ steps.plan.outputs.tag_name }}
+        run: |
+          {
+            echo "### Published $TAG_NAME"
+            echo
+            echo "- Git commit: \`$RELEASE_SHA\`"
+            echo "- CI run: \`$CI_RUN_ID\`"
+            echo "- Apps Script version: \`$APPS_SCRIPT_VERSION\`"
+          } >> "$GITHUB_STEP_SUMMARY"
