@@ -14,12 +14,24 @@ It uses standard JSON tools for each step:
 
 ImportJSON v1 is distributed as an Apps Script Library plus a small wrapper.
 
-1. Open the Google Sheet, then choose **Extensions → Apps Script**.
-2. Add the published ImportJSON Library version using the Script ID supplied with the release, and use `ImportJSONLib` as the library identifier.
-3. Copy [`dist/ImportJSON.gs`](dist/ImportJSON.gs) into the Apps Script project.
-4. Save the project and return to the sheet.
+For **v1.0.0**, use these exact Library settings:
 
-The wrapper exposes the `IMPORTJSON` custom function in the spreadsheet. Pin a published Library version rather than a development version.
+| Setting | Value |
+| --- | --- |
+| Script ID | `1wxMRsFs1vZq5nj7c0rKQKHDJHMcsQQO9W2eGh3T8Yfg8BrsAmAOo1VEi` |
+| Apps Script version | `2` |
+| Library identifier | `ImportJSONLib` |
+
+1. Open the Google Sheet, then choose **Extensions → Apps Script**.
+2. In the Apps Script editor, next to **Libraries**, choose **Add a library**.
+3. Paste the Script ID above and choose **Look up**.
+4. Select **Version 2**, set the identifier to `ImportJSONLib`, and add the Library.
+5. Copy [`dist/ImportJSON.gs`](dist/ImportJSON.gs) into the bound Apps Script project.
+6. Save the project and return to the sheet.
+
+The wrapper exposes the `IMPORTJSON` custom function in the spreadsheet. Use the immutable Apps Script version associated with the GitHub release rather than a development/HEAD version.
+
+For later releases, the corresponding Apps Script Library version is recorded in the release's `release-manifest.json` asset.
 
 ## Syntax
 
