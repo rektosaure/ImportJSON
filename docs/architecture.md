@@ -64,7 +64,7 @@ This changes cache scope and hit rate, not table semantics. User-facing guidance
 
 Fetched bodies are written only after the core successfully parses and transforms them. Cache access is best effort: failures, eviction, quota pressure, and oversized values fall back to normal HTTP behavior without a cache-specific public error.
 
-The adapter requests at most 600 seconds of cache lifetime, honors the restrictive shared-cache rules in the functional specification, and uses no compression, chunking, persistence layer, or `LockService` coordination. `refresh=TRUE` or `1` bypasses lookup but keeps the same cache key; an eligible successful refresh replaces the existing entry.
+The adapter requests at most 3600 seconds of cache lifetime, honors the restrictive shared-cache rules in the functional specification, and uses no compression, chunking, persistence layer, or `LockService` coordination. `refresh=TRUE` or `1` bypasses lookup but keeps the same cache key; an eligible successful refresh replaces the existing entry.
 
 ImportJSON currently has no authentication subsystem. Future authenticated requests must extend request identity before using this shared cache so different authentication contexts cannot share an entry solely because their URLs match.
 
