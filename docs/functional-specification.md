@@ -1,7 +1,6 @@
 # ImportJSON — Functional Specification
 
-**Target:** Google Sheets / Google Apps Script  
-**Public API:** v1
+**Target:** Google Sheets / Google Apps Script
 
 This document defines the observable behavior of ImportJSON. If it conflicts with [`architecture.md`](architecture.md), this specification is authoritative.
 
@@ -239,7 +238,7 @@ A spill conflict caused by occupied destination cells is a Google Sheets error a
 
 Public errors use a stable code followed by a readable message. The exact message text is not normative.
 
-The public v1 codes implemented by ImportJSON are:
+The public error codes implemented by ImportJSON are:
 
 ```text
 INVALID_ARGUMENT
@@ -260,13 +259,13 @@ Errors MUST NOT expose native stack traces or remote response bodies through nor
 
 ImportJSON runs within Google Apps Script and Google Sheets. Platform execution, service, cell, and spill limits therefore apply.
 
-The current v1 implementation defines an explicit 20-second HTTP timeout but does not define additional ImportJSON-specific public error codes for platform size, depth, row-count, column-count, or execution limits.
+The current implementation defines an explicit 20-second HTTP timeout but does not define additional ImportJSON-specific public error codes for platform size, depth, row-count, column-count, or execution limits.
 
 No platform-limit failure is specified as a successful truncated table.
 
 ## 16. Scope
 
-The public v1 API consists only of `IMPORTJSON` with the arguments and behavior defined above. It does not define additional option languages, automatic date conversion, automatic recursive array expansion, joins between sources, JSON writing, custom HTTP methods, or a second public table function.
+The public API consists only of `IMPORTJSON` with the arguments and behavior defined above. It does not define additional option languages, automatic date conversion, automatic recursive array expansion, joins between sources, JSON writing, custom HTTP methods, or a second public table function.
 
 ## References
 

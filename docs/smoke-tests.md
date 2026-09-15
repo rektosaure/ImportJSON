@@ -2,9 +2,11 @@
 
 This document defines the small set of checks that require the real Google Sheets / Apps Script runtime. Automated product behavior belongs in `npm test`; this suite verifies only the platform integration that Node.js cannot fully reproduce.
 
-Run the suite after publication against the immutable Apps Script Library version and `ImportJSON.gs` wrapper from the same GitHub Release.
+Run the suite after publication against both supported installation modes. Cases 1–6 use the immutable Apps Script Library version and `ImportJSON.gs` wrapper from the same GitHub Release. Case 7 is a minimal sanity check for the manual bundle installation.
 
 ## Setup
+
+For cases 1–6:
 
 1. Add the published Apps Script Library version to a disposable Google Sheet and use the identifier `ImportJSONLib`.
 2. Copy the release's `ImportJSON.gs` wrapper into the bound Apps Script project.
@@ -122,10 +124,30 @@ Repeat case 1 with a unique fifth argument while preserving the blank positional
 
 The result must be identical to case 1. This verifies the public fifth-argument path without duplicating the complete smoke matrix.
 
+### 7. Manual bundle installation
+
+Use a second disposable Google Sheet with no ImportJSON Library and no `ImportJSON.gs` wrapper. In its bound Apps Script project, create a script file and replace its contents with the release's `importjson-library.gs` bundle, then save the project.
+
+Use the same `root-object.json` URL as case 1:
+
+```gs
+=IMPORTJSON("<root-object-url>")
+```
+
+Expected table:
+
+```text
+/details/active   /id   /name
+TRUE              1     Alpha
+```
+
+This verifies that the published complete bundle exposes the `IMPORTJSON` custom function directly in a bound Apps Script project. The complete behavior matrix is not repeated because both installation modes execute the same bundled implementation.
+
 ## Acceptance
 
 A release passes the live smoke suite only when:
 
-- all six cases pass in the same Sheet using the immutable Library version and wrapper from that release;
+- cases 1–6 pass in the same Sheet using the immutable Library version and wrapper from that release;
+- case 7 passes in a separate Sheet using only `importjson-library.gs` from that release;
 - the release tag, exact Git commit, and Apps Script Library version are recorded with the result;
 - no case unexpectedly exposes a native stack trace or remote response body.
