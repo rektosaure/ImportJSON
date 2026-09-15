@@ -1,32 +1,88 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { runImportJSON } from '../src/apps-script.mjs';
 
-function withFetch({ status = 200, body = '[]', error }, callback) {
-  const previous = globalThis.UrlFetchApp;
+function withRuntime({
+  status = 200,
+  body = '[]',
+  error,
+  headers = {},
+  cacheGetError,
+  cachePutError,
+  cacheServiceError,
+} = {}, callback) {
+  const previousUrlFetchApp = globalThis.UrlFetchApp;
+  const previousCacheService = globalThis.CacheService;
+  const previousUtilities = globalThis.Utilities;
   const calls = [];
+  const cacheGets = [];
+  const cachePuts = [];
+  const values = new Map();
+
+  const cache = {
+    get(key) {
+      cacheGets.push(key);
+      if (cacheGetError) throw cacheGetError;
+      return values.has(key) ? values.get(key) : null;
+    },
+    put(key, value, expirationInSeconds) {
+      cachePuts.push({ key, value, expirationInSeconds });
+      if (cachePutError) throw cachePutError;
+      values.set(key, value);
+    },
+  };
+
+  globalThis.CacheService = {
+    getScriptCache() {
+      if (cacheServiceError) throw cacheServiceError;
+      return cache;
+    },
+  };
+
+  globalThis.Utilities = {
+    DigestAlgorithm: { SHA_256: 'SHA_256' },
+    Charset: { UTF_8: 'UTF_8' },
+    computeDigest(algorithm, value, charset) {
+      assert.equal(algorithm, 'SHA_256');
+      assert.equal(charset, 'UTF_8');
+      return Array.from(createHash('sha256').update(value, 'utf8').digest(), (byte) => (
+        byte > 127 ? byte - 256 : byte
+      ));
+    },
+  };
 
   globalThis.UrlFetchApp = {
     fetch(url, options) {
       calls.push({ url, options });
       if (error) throw error;
+      const fetchNumber = calls.length;
+      const responseBody = typeof body === 'function' ? body(fetchNumber) : body;
+      const responseHeaders = typeof headers === 'function' ? headers(fetchNumber) : headers;
       return {
         getResponseCode() { return status; },
-        getContentText() { return body; },
+        getContentText() { return responseBody; },
+        getAllHeaders() { return responseHeaders; },
       };
     },
   };
 
   try {
-    return callback(calls);
+    return callback({ calls, cacheGets, cachePuts, values });
   } finally {
-    if (previous === undefined) delete globalThis.UrlFetchApp;
-    else globalThis.UrlFetchApp = previous;
+    if (previousUrlFetchApp === undefined) delete globalThis.UrlFetchApp;
+    else globalThis.UrlFetchApp = previousUrlFetchApp;
+
+    if (previousCacheService === undefined) delete globalThis.CacheService;
+    else globalThis.CacheService = previousCacheService;
+
+    if (previousUtilities === undefined) delete globalThis.Utilities;
+    else globalThis.Utilities = previousUtilities;
   }
 }
 
 test('IMPORTJSON adapter performs one bounded GET and returns a Sheets matrix', () => {
-  withFetch({ body: '[{"a":1},{"a":2}]' }, (calls) => {
+  withRuntime({ body: '[{"a":1},{"a":2}]' }, ({ calls, cachePuts }) => {
     assert.deepEqual(runImportJSON('https://example.test/data.json'), [
       ['/a'],
       [1],
@@ -42,11 +98,13 @@ test('IMPORTJSON adapter performs one bounded GET and returns a Sheets matrix', 
         timeoutSeconds: 20,
       },
     }]);
+    assert.equal(cachePuts.length, 1);
+    assert.equal(cachePuts[0].expirationInSeconds, 600);
   });
 });
 
 test('single-cell arguments and one-dimensional column ranges are accepted', () => {
-  withFetch({ body: '{"items":[{"a":1,"b":2}]}' }, () => {
+  withRuntime({ body: '{"items":[{"a":1,"b":2}]}' }, () => {
     assert.deepEqual(runImportJSON(
       [['https://example.test/data.json']],
       [['$.items[*]']],
@@ -57,7 +115,7 @@ test('single-cell arguments and one-dimensional column ranges are accepted', () 
     ]);
   });
 
-  withFetch({ body: '[{"a":1,"b":2}]' }, () => {
+  withRuntime({ body: '[{"a":1,"b":2}]' }, () => {
     assert.deepEqual(runImportJSON(
       'https://example.test/data.json',
       undefined,
@@ -70,7 +128,7 @@ test('single-cell arguments and one-dimensional column ranges are accepted', () 
 });
 
 test('blank optional arguments are always treated as omitted', () => {
-  withFetch({ body: '[{"a":1,"b":2}]' }, () => {
+  withRuntime({ body: '[{"a":1,"b":2}]' }, () => {
     const expected = [
       ['/a', '/b'],
       [1, 2],
@@ -84,10 +142,11 @@ test('blank optional arguments are always treated as omitted', () => {
       [['']],
       [['']],
       [['']],
+      [['']],
     ), expected);
   });
 
-  withFetch({ body: '[{"id":1,"items":["a","b"]}]' }, () => {
+  withRuntime({ body: '[{"id":1,"items":["a","b"]}]' }, () => {
     assert.deepEqual(runImportJSON(
       'https://example.test/data.json',
       '',
@@ -99,22 +158,9 @@ test('blank optional arguments are always treated as omitted', () => {
       [1, 'b'],
     ]);
   });
-
-  withFetch({ body: '[{"a":1}]' }, () => {
-    assert.deepEqual(runImportJSON(
-      'https://example.test/data.json',
-      '',
-      '',
-      '',
-      'refresh-1',
-    ), [
-      ['/a'],
-      [1],
-    ]);
-  });
 });
 
-test('adapter validates URL, query, columns, and shape forms', () => {
+test('adapter validates URL, query, columns, shape, and refresh forms', () => {
   assert.throws(
     () => runImportJSON([['https://a.test'], ['https://b.test']]),
     (error) => error.code === 'INVALID_ARGUMENT',
@@ -124,7 +170,7 @@ test('adapter validates URL, query, columns, and shape forms', () => {
     (error) => error.code === 'INVALID_URL',
   );
 
-  withFetch({ body: '{}' }, () => {
+  withRuntime({ body: '{}' }, () => {
     assert.throws(
       () => runImportJSON('https://example.test/data.json', [['$'], ['$']]),
       (error) => error.code === 'INVALID_ARGUMENT',
@@ -145,36 +191,61 @@ test('adapter validates URL, query, columns, and shape forms', () => {
       () => runImportJSON('https://example.test/data.json', undefined, undefined, 'unknown'),
       (error) => error.code === 'INVALID_ARGUMENT',
     );
+    assert.throws(
+      () => runImportJSON('https://example.test/data.json', undefined, undefined, undefined, 'refresh'),
+      (error) => error.code === 'INVALID_ARGUMENT',
+    );
+    assert.throws(
+      () => runImportJSON('https://example.test/data.json', undefined, undefined, undefined, 2),
+      (error) => error.code === 'INVALID_ARGUMENT',
+    );
+    assert.throws(
+      () => runImportJSON('https://example.test/data.json', undefined, undefined, undefined, [[true], [false]]),
+      (error) => error.code === 'INVALID_ARGUMENT',
+    );
   });
 });
 
 test('network and non-2xx failures become HTTP_ERROR without leaking native details', () => {
-  withFetch({ error: new Error('secret token=abc') }, () => {
+  withRuntime({ error: new Error('secret token=abc') }, ({ cachePuts }) => {
     assert.throws(
       () => runImportJSON('https://example.test/data.json'),
       (error) => error.code === 'HTTP_ERROR' && !error.message.includes('secret'),
     );
+    assert.equal(cachePuts.length, 0);
   });
 
-  withFetch({ status: 404, body: 'private remote body' }, () => {
+  withRuntime({ status: 404, body: 'private remote body' }, ({ cachePuts }) => {
     assert.throws(
       () => runImportJSON('https://example.test/data.json'),
       (error) => error.code === 'HTTP_ERROR' && !error.message.includes('private remote body'),
     );
+    assert.equal(cachePuts.length, 0);
   });
 });
 
-test('invalid JSON after a successful response becomes INVALID_JSON', () => {
-  withFetch({ body: '{' }, () => {
+test('invalid JSON after a successful response becomes INVALID_JSON and is not cached', () => {
+  withRuntime({ body: '{' }, ({ cachePuts }) => {
     assert.throws(
       () => runImportJSON('https://example.test/data.json'),
       (error) => error.code === 'INVALID_JSON',
     );
+    assert.equal(cachePuts.length, 0);
+  });
+});
+
+test('failed transformation does not populate the cache', () => {
+  withRuntime({ body: '[{"items":1}]' }, ({ cachePuts }) => {
+    assert.throws(
+      () => runImportJSON('https://example.test/data.json', undefined, undefined, '/items'),
+      (error) => error.code === 'INVALID_EXPANSION_TARGET',
+    );
+    assert.equal(cachePuts.length, 0);
   });
 });
 
 test('renderer maps null and missing to blank cells and handles unknown schema', () => {
-  withFetch({ body: '[{"a":null},{}]' }, () => {
+  withRuntime({ body: '[{"a":null},{}]' }, () => {
     assert.deepEqual(runImportJSON(
       'https://example.test/data.json',
       undefined,
@@ -186,39 +257,179 @@ test('renderer maps null and missing to blank cells and handles unknown schema',
     ]);
   });
 
-  withFetch({ body: '[{},{}]' }, () => {
+  withRuntime({ body: '[{},{}]' }, () => {
     assert.deepEqual(runImportJSON('https://example.test/data.json'), [['']]);
   });
 });
 
-test('pointer shape and refreshKey flow through the public adapter', () => {
-  withFetch({ body: '[{"id":1,"items":["a","b"]}]' }, () => {
-    const first = runImportJSON(
+test('same URL shares one cached body across query, columns, and shape variants', () => {
+  withRuntime({ body: '{"items":[{"a":1,"b":2}]}' }, ({ calls }) => {
+    assert.deepEqual(runImportJSON(
       'https://example.test/data.json',
-      undefined,
-      undefined,
-      '/items',
-      'refresh-1',
-    );
-    const second = runImportJSON(
-      'https://example.test/data.json',
-      undefined,
-      undefined,
-      '/items',
-      'refresh-2',
-    );
-
-    assert.deepEqual(first, [
-      ['/id', '/items'],
-      [1, 'a'],
-      [1, 'b'],
+      '$.items[*]',
+      '/a',
+    ), [
+      ['/a'],
+      [1],
     ]);
-    assert.deepEqual(second, first);
+
+    assert.deepEqual(runImportJSON(
+      'https://example.test/data.json',
+      '$.items[*]',
+      '/b',
+    ), [
+      ['/b'],
+      [2],
+    ]);
+
+    assert.deepEqual(runImportJSON(
+      'https://example.test/data.json',
+      undefined,
+      '/items/a',
+      '/items',
+    ), [
+      ['/items/a'],
+      [1],
+    ]);
+
+    assert.equal(calls.length, 1);
+  });
+});
+
+test('refresh FALSE or 0 uses cache while TRUE or 1 bypasses and replaces it', () => {
+  withRuntime({
+    body: (fetchNumber) => `[{"a":${fetchNumber}}]`,
+  }, ({ calls, cachePuts }) => {
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, undefined, undefined, false), [
+      ['/a'],
+      [1],
+    ]);
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, undefined, undefined, 0), [
+      ['/a'],
+      [1],
+    ]);
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, undefined, undefined, 1), [
+      ['/a'],
+      [2],
+    ]);
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, undefined, undefined, false), [
+      ['/a'],
+      [2],
+    ]);
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, undefined, undefined, true), [
+      ['/a'],
+      [3],
+    ]);
+    assert.deepEqual(runImportJSON('https://example.test/data.json'), [
+      ['/a'],
+      [3],
+    ]);
+
+    assert.equal(calls.length, 3);
+    assert.equal(cachePuts.length, 3);
+    assert.equal(new Set(cachePuts.map(({ key }) => key)).size, 1);
+  });
+});
+
+test('cache keys are stable per URL, hashed, and do not expose the URL', () => {
+  withRuntime({ body: '[{"a":1}]' }, ({ calls, cacheGets, cachePuts }) => {
+    runImportJSON('https://example.test/data.json?secret=abc');
+    runImportJSON('https://example.test/data.json?secret=abc');
+    runImportJSON('https://example.test/other.json?secret=abc');
+
+    assert.equal(calls.length, 2);
+    assert.equal(cacheGets[0], cacheGets[1]);
+    assert.notEqual(cacheGets[0], cacheGets[2]);
+    assert.match(cacheGets[0], /^importjson:http:v1:[0-9a-f]{64}$/);
+    assert.equal(cacheGets[0].includes('example.test'), false);
+    assert.equal(cacheGets[0].includes('secret'), false);
+    assert.equal(cachePuts.length, 2);
+  });
+});
+
+test('cache read and write failures never change IMPORTJSON success behavior', () => {
+  withRuntime({
+    body: '[{"a":1}]',
+    cacheGetError: new Error('cache unavailable'),
+  }, ({ calls }) => {
+    assert.deepEqual(runImportJSON('https://example.test/data.json'), [
+      ['/a'],
+      [1],
+    ]);
+    assert.equal(calls.length, 1);
+  });
+
+  withRuntime({
+    body: '[{"a":1}]',
+    cachePutError: new Error('value too large'),
+  }, ({ calls }) => {
+    assert.deepEqual(runImportJSON('https://example.test/data.json'), [
+      ['/a'],
+      [1],
+    ]);
+    assert.equal(calls.length, 1);
+  });
+
+  withRuntime({
+    body: '[{"a":1}]',
+    cacheServiceError: new Error('cache service unavailable'),
+  }, ({ calls }) => {
+    assert.deepEqual(runImportJSON('https://example.test/data.json'), [
+      ['/a'],
+      [1],
+    ]);
+    assert.equal(calls.length, 1);
+  });
+});
+
+test('shared-cache HTTP directives can disable storage', () => {
+  for (const cacheControl of ['no-store', 'no-cache', 'private', 'max-age=0', 's-maxage=0']) {
+    withRuntime({
+      body: '[{"a":1}]',
+      headers: { 'Cache-Control': cacheControl },
+    }, ({ cachePuts }) => {
+      runImportJSON('https://example.test/data.json');
+      assert.equal(cachePuts.length, 0, cacheControl);
+    });
+  }
+
+  withRuntime({
+    body: '[{"a":1}]',
+    headers: { Vary: '*' },
+  }, ({ cachePuts }) => {
+    runImportJSON('https://example.test/data.json');
+    assert.equal(cachePuts.length, 0);
+  });
+});
+
+test('origin freshness can shorten but not extend the 600-second cache TTL', () => {
+  withRuntime({
+    body: '[{"a":1}]',
+    headers: { 'Cache-Control': 'public, max-age=30' },
+  }, ({ cachePuts }) => {
+    runImportJSON('https://example.test/data.json');
+    assert.equal(cachePuts[0].expirationInSeconds, 30);
+  });
+
+  withRuntime({
+    body: '[{"a":1}]',
+    headers: { 'Cache-Control': 'max-age=120, s-maxage=45' },
+  }, ({ cachePuts }) => {
+    runImportJSON('https://example.test/data.json');
+    assert.equal(cachePuts[0].expirationInSeconds, 45);
+  });
+
+  withRuntime({
+    body: '[{"a":1}]',
+    headers: { 'Cache-Control': 'max-age=3600' },
+  }, ({ cachePuts }) => {
+    runImportJSON('https://example.test/data.json');
+    assert.equal(cachePuts[0].expirationInSeconds, 600);
   });
 });
 
 test('columnar shape flows through the public adapter', () => {
-  withFetch({ body: '{"ticker":"AAPL","year":[2024,2025],"eps":[6.08,7.46]}' }, () => {
+  withRuntime({ body: '{"ticker":"AAPL","year":[2024,2025],"eps":[6.08,7.46]}' }, () => {
     assert.deepEqual(runImportJSON(
       'https://example.test/data.json',
       undefined,
