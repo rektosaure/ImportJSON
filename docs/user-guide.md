@@ -2,6 +2,8 @@
 
 ImportJSON fetches one JSON document from an HTTP or HTTPS URL and turns selected JSON values into a Google Sheets table.
 
+This guide is the complete practical reference for the public `IMPORTJSON` function. The [Functional Specification](functional-specification.md) is the normative contract when exact observable behavior needs to be resolved.
+
 ```text
 IMPORTJSON(url, [query], [columns], [shape], [refreshKey])
 ```
@@ -13,9 +15,11 @@ Examples use commas as formula argument separators. Some Google Sheets locales r
 ImportJSON v1 is distributed as an Apps Script Library plus a small wrapper.
 
 1. In the spreadsheet, open **Extensions → Apps Script**.
-2. Add the published ImportJSON Library version using the Script ID supplied with the release and set its identifier to `ImportJSONLib`.
-3. Copy [`../dist/ImportJSON.gs`](../dist/ImportJSON.gs) into the Apps Script project.
+2. Add the published ImportJSON Library version using the Script ID and Apps Script version supplied for the release, and set its identifier to `ImportJSONLib`.
+3. Download the `ImportJSON.gs` wrapper asset from that same GitHub release and copy it into the bound Apps Script project.
 4. Save the project and return to the spreadsheet.
+
+The [README](../README.md) lists the current release installation settings. Use an immutable Apps Script Library version and the wrapper from the matching GitHub release rather than files from a development branch.
 
 The source URL must be reachable by an HTTP or HTTPS GET request from Apps Script and must return valid JSON. The formula also needs enough empty cells for its result to spill.
 
@@ -242,12 +246,12 @@ Formula:
 =IMPORTJSON(A1, , , "columnar")
 ```
 
-Logical records become:
+With automatic projection, the output is:
 
 ```text
-/group   /year   /score
-A        2024    18
-A        2025    21
+/group   /score   /year
+A        18       2024
+A        21       2025
 ```
 
 The mode is always explicit. For each selected record:
