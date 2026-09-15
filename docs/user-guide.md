@@ -55,19 +55,23 @@ Google Sheets
 | `shape` | Optional JSON Pointer identifying one array to expand, or `"columnar"`. |
 | `refreshKey` | Optional recalculation dependency; ignored by the data engine. |
 
-Blank intermediate arguments are treated as omitted when a later argument is present. For example:
+For `query`, `columns`, and `shape`, an empty string is always treated as omitted. This applies to `""` and to a single blank cell, whether or not a later optional argument is present.
+
+For example, all of these use the omitted-query behavior:
 
 ```gs
+=IMPORTJSON(A1)
+=IMPORTJSON(A1, "")
 =IMPORTJSON(A1, , , "/items")
 ```
 
-and:
+and this is also valid:
 
 ```gs
 =IMPORTJSON(A1, , , , B1)
 ```
 
-are valid.
+A blank entry inside a multi-cell `columns` range is different: it is an invalid column entry rather than an omitted argument.
 
 ## `url`
 
@@ -77,7 +81,7 @@ ImportJSON performs one GET request, follows redirects, and accepts only a final
 
 ## `query`: JSONPath selection
 
-`query` follows JSONPath RFC 9535 and determines which nodes become selected records.
+`query` follows JSONPath RFC 9535 and determines which nodes become selected records. An empty string or blank single cell is treated as omitted.
 
 Given:
 
@@ -127,15 +131,15 @@ For multiple columns, put pointers in a one-dimensional Sheets range. If `D1:F1`
 =IMPORTJSON(A1, "$.users[*]", D1:F1)
 ```
 
-Explicit projection preserves the pointer order exactly. A rectangular two-dimensional range, an empty pointer, an invalid pointer, or a duplicate pointer produces `INVALID_ARGUMENT`.
+A direct empty string or a single blank cell means that `columns` is omitted. Once a multi-cell range is used, every entry must contain a non-empty JSON Pointer. Explicit projection preserves the pointer order exactly. A rectangular two-dimensional range, blank entry, invalid pointer, or duplicate pointer produces `INVALID_ARGUMENT`.
 
 If a pointer does not resolve for a row, the value is missing. Google Sheets renders both missing and JSON `null` as an empty cell.
 
 ## Automatic projection and flattening
 
-When `columns` is omitted, ImportJSON discovers columns automatically.
+When `columns` is omitted, ImportJSON discovers columns automatically using one rule for every logical row.
 
-Nested objects are flattened recursively into JSON Pointer headers. For example:
+Object rows are flattened recursively into JSON Pointer headers. For example:
 
 ```json
 {"id": 1, "details": {"active": true, "label": "A"}}
@@ -143,11 +147,24 @@ Nested objects are flattened recursively into JSON Pointer headers. For example:
 
 becomes columns `/details/active`, `/details/label`, and `/id`.
 
-The automatic schema is the union of discovered properties across logical rows that exist after shaping. Empty objects contribute no automatic columns. Automatically discovered headers are sorted by their full JSON Pointer strings using Unicode code-point order.
+Non-object rows such as strings, numbers, booleans, `null`, or arrays use the synthetic `@value` column. Object and non-object rows may coexist; the automatic schema is the union of all columns contributed by the logical rows. Empty objects contribute no automatic columns. Automatically discovered headers, including `@value`, are sorted by Unicode code point.
 
-If all unshaped selected records are non-objects such as strings, numbers, booleans, `null`, or arrays, ImportJSON uses the synthetic header `@value`.
+For example:
 
-Without explicit shaping, automatic projection cannot mix object and non-object records; that produces `HETEROGENEOUS_RECORDS`.
+```json
+[
+  {"name": "Alpha"},
+  42
+]
+```
+
+becomes:
+
+```text
+/name   @value
+Alpha
+        42
+```
 
 ## Structured values
 
@@ -173,7 +190,7 @@ An explicitly projected empty object renders as `{}`. Strings are not trimmed or
 
 ## `shape`
 
-`shape` performs one explicit structural transformation after selection and before projection.
+`shape` performs one explicit structural transformation after selection and before projection. An empty string or blank single cell is treated as omitted.
 
 It has three states:
 
@@ -307,8 +324,8 @@ Rows preserve JSONPath selection order. Pointer shaping preserves target-array o
 Column order is different:
 
 - explicit projection uses the supplied pointer order;
-- automatic projection sorts full JSON Pointer headers by Unicode code point;
-- non-object automatic projection uses only `@value`.
+- automatic projection sorts all discovered headers by Unicode code point;
+- non-object rows contribute `@value`, which may coexist with JSON Pointer headers.
 
 ## Public errors
 
@@ -319,7 +336,6 @@ Column order is different:
 | `HTTP_ERROR` | The request failed or the final status was not `2xx`. |
 | `INVALID_JSON` | The successful response body is not valid JSON. |
 | `INVALID_JSONPATH` | `query` is not valid JSONPath. |
-| `HETEROGENEOUS_RECORDS` | Automatic projection without shaping mixes object and non-object records. |
 | `INVALID_EXPANSION_TARGET` | Pointer shaping resolves to an existing value that is neither an array nor `null`. |
 | `INVALID_COLUMNAR_TARGET` | `columnar` receives a non-object record or an object with no direct arrays. |
 | `COLUMN_LENGTH_MISMATCH` | Direct arrays in one columnar record have different lengths. |

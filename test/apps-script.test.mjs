@@ -69,16 +69,22 @@ test('single-cell arguments and one-dimensional column ranges are accepted', () 
   });
 });
 
-test('blank positional placeholders are treated as omitted before later optional arguments', () => {
+test('blank optional arguments are always treated as omitted', () => {
   withFetch({ body: '[{"a":1,"b":2}]' }, () => {
+    const expected = [
+      ['/a', '/b'],
+      [1, 2],
+    ];
+
+    assert.deepEqual(runImportJSON('https://example.test/data.json', ''), expected);
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, ''), expected);
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, undefined, ''), expected);
     assert.deepEqual(runImportJSON(
       'https://example.test/data.json',
-      '',
-      [['/b'], ['/a']],
-    ), [
-      ['/b', '/a'],
-      [2, 1],
-    ]);
+      [['']],
+      [['']],
+      [['']],
+    ), expected);
   });
 
   withFetch({ body: '[{"id":1,"items":["a","b"]}]' }, () => {
@@ -105,11 +111,6 @@ test('blank positional placeholders are treated as omitted before later optional
       ['/a'],
       [1],
     ]);
-
-    assert.throws(
-      () => runImportJSON('https://example.test/data.json', ''),
-      (error) => error.code === 'INVALID_ARGUMENT',
-    );
   });
 });
 

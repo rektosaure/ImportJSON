@@ -35,6 +35,8 @@ The only public Google Sheets function is:
 IMPORTJSON(url, [query], [columns], [shape], [refreshKey])
 ```
 
+For `query`, `columns`, and `shape`, an empty string is equivalent to omitting that argument. This applies to a literal empty string and to a single-cell value that is empty, regardless of whether later optional arguments are present. A blank entry inside a multi-cell `columns` range is not an omitted argument and remains invalid.
+
 The processing order is:
 
 ```text
@@ -73,7 +75,7 @@ ImportJSON does not accept raw JSON text in place of `url` through the public Sh
 
 ## 4. `query` and JSONPath selection
 
-When supplied, `query` MUST resolve to a non-empty string containing an RFC 9535 JSONPath expression. A non-string value, blank string, or multi-cell range produces `INVALID_ARGUMENT`. Invalid JSONPath syntax produces `INVALID_JSONPATH`.
+After omission normalization, a supplied `query` MUST resolve to a non-empty string containing an RFC 9535 JSONPath expression. A non-string value or multi-cell range produces `INVALID_ARGUMENT`. Invalid JSONPath syntax produces `INVALID_JSONPATH`.
 
 An empty JSONPath selection is valid and MUST NOT produce a no-match error.
 
@@ -100,16 +102,16 @@ Properties are identified relative to each logical row by RFC 6901 JSON Pointer,
 
 ## 6. Automatic projection
 
-When `columns` is omitted, ImportJSON MUST project rows automatically according to these rules:
+When `columns` is omitted, ImportJSON MUST project every logical row with the same rules:
 
-- nested objects are recursively flattened;
+- object rows are recursively flattened into JSON Pointer columns;
 - an empty object contributes no automatic column;
-- the schema is the union of properties discovered from logical rows that exist after shaping;
-- headers are full JSON Pointers sorted by Unicode code-point order;
-- if every unshaped selected record is a non-object, the only header is `@value`;
-- if unshaped selected records mix at least one object with at least one non-object, the invocation produces `HETEROGENEOUS_RECORDS`.
+- non-object rows contribute the synthetic column `@value`;
+- arrays and objects that reach a cell are serialized according to Section 8;
+- the schema is the union of columns contributed by all logical rows that exist after shaping;
+- automatic headers, including `@value`, are sorted by Unicode code-point order.
 
-`HETEROGENEOUS_RECORDS` does not apply to heterogeneous logical rows produced by an explicit shaping operation.
+Object and non-object logical rows MAY coexist in the same automatic projection. Missing cells are represented internally as missing values.
 
 If automatic projection cannot discover any header, the rendered Sheets result is one blank cell.
 
@@ -117,12 +119,12 @@ If automatic projection cannot discover any header, the rendered Sheets result i
 
 An explicit projection is an ordered list of non-empty JSON Pointers.
 
-The Sheets adapter accepts either:
+After omission normalization, the Sheets adapter accepts either:
 
 - one JSON Pointer string; or
 - a one-dimensional horizontal or vertical range of JSON Pointer strings.
 
-A two-dimensional rectangular range, blank pointer, invalid JSON Pointer, or duplicate pointer produces `INVALID_ARGUMENT`.
+A two-dimensional rectangular range, a blank pointer within a multi-cell range, invalid JSON Pointer, or duplicate pointer produces `INVALID_ARGUMENT`.
 
 With explicit projection:
 
@@ -149,7 +151,7 @@ Strings MUST be preserved without implicit trimming or date conversion. Booleans
 
 `shape` is optional. When omitted, selected records are tabularized without an additional structural transformation.
 
-When supplied, `shape` MUST resolve to one non-empty string containing exactly one of:
+After omission normalization, a supplied `shape` MUST resolve to one non-empty string containing exactly one of:
 
 - `columnar`; or
 - an RFC 6901 JSON Pointer relative to each selected record.
@@ -172,7 +174,7 @@ Properties outside the target subtree MUST be repeated for each produced row. Th
 
 No nested array is expanded a second time. There is no implicit second shaping operation and no implicit Cartesian product.
 
-For automatic projection after pointer shaping, the schema is the deterministic union of properties observed in the produced logical rows. If shaping produces zero rows, automatic projection has no schema. Use explicit `columns` when headers must remain present without data rows.
+For automatic projection after pointer shaping, the schema is the deterministic union of columns contributed by the produced logical rows. If shaping produces zero rows, automatic projection has no schema. Use explicit `columns` when headers must remain present without data rows.
 
 ## 11. `columnar` shaping
 
@@ -210,7 +212,7 @@ Automatic projection derives columns only from produced logical rows. If matchin
 
 `refreshKey` is ignored by the data engine but participates in Sheets formula dependency tracking.
 
-A blank placeholder MAY be used for earlier optional arguments when `refreshKey` is supplied:
+Earlier optional arguments MAY be left blank when `refreshKey` is supplied because empty `query`, `columns`, and `shape` values are always treated as omitted:
 
 ```text
 IMPORTJSON(A1, , , , B1)
@@ -245,7 +247,6 @@ INVALID_URL
 HTTP_ERROR
 INVALID_JSON
 INVALID_JSONPATH
-HETEROGENEOUS_RECORDS
 INVALID_EXPANSION_TARGET
 INVALID_COLUMNAR_TARGET
 COLUMN_LENGTH_MISMATCH

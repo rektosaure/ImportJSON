@@ -112,11 +112,23 @@ test('automatic headers use escaped JSON Pointers and Unicode code-point order',
   assert.deepEqual(result.headers, ['/10', '/2', '/a~1b', '/m~0n', '/\uE000', '/\u{10000}']);
 });
 
-test('automatic projection rejects mixed object and non-object records', () => {
-  assert.throws(
-    () => table([{ a: 1 }, 2]),
-    (error) => error.code === 'HETEROGENEOUS_RECORDS',
-  );
+test('automatic projection combines object and non-object rows', () => {
+  assert.deepEqual(table([
+    { a: 1 },
+    2,
+    null,
+    [3, 4],
+    {},
+  ]), {
+    headers: ['/a', '@value'],
+    rows: [
+      [1, undefined],
+      [undefined, 2],
+      [undefined, null],
+      [undefined, '[3,4]'],
+      [undefined, undefined],
+    ],
+  });
 });
 
 test('explicit projection preserves order and distinguishes missing from null', () => {
