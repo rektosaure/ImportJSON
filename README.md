@@ -6,24 +6,17 @@ It uses standard JSON tools: JSONPath (RFC 9535) selects nodes, JSON Pointer (RF
 
 ## Install
 
-ImportJSON v1 is distributed as an Apps Script Library plus a small wrapper.
+Each ImportJSON release is distributed as an immutable Apps Script Library version plus a small wrapper.
 
-For **v1.0.0**, use these exact Library settings:
+1. Open the [latest GitHub release](https://github.com/rektosaure/ImportJSON/releases/latest).
+2. Open its `release-manifest.json` asset and note `appsScript.scriptId` and `appsScript.version`.
+3. In the Google Sheet, choose **Extensions → Apps Script**.
+4. Next to **Libraries**, choose **Add a library**, paste the Script ID from the manifest, and choose **Look up**.
+5. Select the Apps Script version from the manifest, set the Library identifier to `ImportJSONLib`, and add the Library.
+6. Download `ImportJSON.gs` from that same GitHub release and copy it into the bound Apps Script project.
+7. Save the project and return to the sheet.
 
-| Setting | Value |
-| --- | --- |
-| Script ID | `1wxMRsFs1vZq5nj7c0rKQKHDJHMcsQQO9W2eGh3T8Yfg8BrsAmAOo1VEi` |
-| Apps Script version | `2` |
-| Library identifier | `ImportJSONLib` |
-
-1. Open the Google Sheet, then choose **Extensions → Apps Script**.
-2. Next to **Libraries**, choose **Add a library**.
-3. Paste the Script ID above and choose **Look up**.
-4. Select **Version 2**, set the identifier to `ImportJSONLib`, and add the Library.
-5. Download `ImportJSON.gs` from the [v1.0.0 release](https://github.com/rektosaure/ImportJSON/releases/tag/v1.0.0) and copy it into the bound Apps Script project.
-6. Save the project and return to the sheet.
-
-Use the wrapper from the same GitHub release as the immutable Apps Script Library version. For later releases, the corresponding Apps Script version is recorded in the release's `release-manifest.json` asset.
+Always use the wrapper and Apps Script version from the same release. Do not install files directly from a development branch.
 
 ## Quick start
 
