@@ -58,7 +58,13 @@ ImportJSON uses `json-p3@2.3.0` for RFC 9535 evaluation and `re2js@2.8.6` for th
 
 The production bundle targets Google Apps Script V8. Apps Script does not provide the `TextEncoder` required by one `json-p3` code path, so `scripts/build.mjs` injects the narrowly scoped ASCII-only shim in `src/apps-script-text-encoder.mjs`.
 
-The integration must remain compatible with Apps Script V8 without Node.js runtime globals or dynamic code generation. Dependency changes are requalified through [JSONPath Qualification](jsonpath-qualification.md) and the automated test suite.
+The integration must remain compatible with Apps Script V8 without Node.js runtime globals or dynamic code generation.
+
+### Qualification
+
+`test/jsonpath.test.mjs` is the executable qualification for this integration. It pins the RFC 9535 compliance fixture and verifies the complete suite, deterministic ordering, the RE2JS overrides, the `TextEncoder` assumption and shim, and the exact built production Library bundle in an Apps Script-like runtime.
+
+Dependency or integration changes must keep that qualification passing. Test coverage is the source of truth for the individual checks; this document records only why the qualification boundary exists.
 
 ## 3. Build and distribution
 
@@ -75,7 +81,7 @@ build/re2js-LICENSE
 
 `src/apps-script-globals.js` is appended to the bundle so the standalone Library exposes `IMPORTJSON(...)` in Apps Script. `dist/ImportJSON.gs` is the small user-facing wrapper copied into the consuming spreadsheet project; it delegates to the published Library through the identifier `ImportJSONLib`.
 
-The Library bundle and wrapper intentionally remain separate artifacts. CI on `main` stages both, and the release workflow promotes that exact candidate rather than rebuilding release bytes.
+The Library bundle and wrapper intentionally remain separate artifacts. The release workflow tests and builds the selected `main` commit, then publishes those exact outputs without a second build step.
 
 ## 4. Change discipline
 
