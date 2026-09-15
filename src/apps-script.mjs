@@ -126,6 +126,16 @@ function readCachedBody(handle) {
   }
 }
 
+function removeCachedBody(handle) {
+  if (!handle) return;
+
+  try {
+    handle.cache.remove(handle.key);
+  } catch {
+    // CacheService is best effort; cache failures never fail IMPORTJSON.
+  }
+}
+
 function headerValue(headers, name) {
   const entry = Object.entries(headers ?? {}).find(
     ([headerName]) => headerName.toLowerCase() === name,
@@ -233,6 +243,8 @@ export function runImportJSON(url, query, columns, shape, refresh) {
   }
 
   const fetched = fetchBody(normalizedUrl);
+  if (fetched.cacheTtlSeconds <= 0) removeCachedBody(handle);
+
   const table = jsonTextToTable(fetched.body, {
     query: normalizedQuery,
     columns: normalizedColumns,
