@@ -94,10 +94,8 @@ jobs:
           echo "$PLAN_JSON"
           TAG_NAME="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).tagName)' "$PLAN_JSON")"
           VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).version)' "$PLAN_JSON")"
-          MODE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).mode)' "$PLAN_JSON")"
           echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
 
       - name: Prepare Apps Script project
         env:
