@@ -20,7 +20,7 @@ Automated qualification MUST verify:
 - pinned `json-p3` use of `TextEncoder` limited to ASCII hexadecimal escape parsing;
 - the Apps Script `TextEncoder` shim accepting ASCII and rejecting non-ASCII input;
 - bundled execution without unavailable Node.js globals or a runtime-global `TextEncoder`;
-- the real `src/apps-script.mjs` adapter executing `match()` and `search()` in an Apps Script-like runtime.
+- the exact built production Library bundle executing `match()` and `search()` in an Apps Script-like runtime.
 
 The pinned CTS fixtures live under [`test/jsonpath/fixtures/`](../test/jsonpath/fixtures/). Qualification uses the committed fixture rather than a moving upstream source.
 
