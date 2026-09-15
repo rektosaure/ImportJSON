@@ -280,6 +280,19 @@ test('columnar shape zips direct arrays by index and repeats non-array propertie
   });
 });
 
+test('columnar shape preserves __proto__ as a data property', () => {
+  assert.deepEqual(jsonTextToTable(
+    '{"__proto__":{"source":"api"},"year":[2024,2025]}',
+    { shape: 'columnar' },
+  ), {
+    headers: ['/__proto__/source', '/year'],
+    rows: [
+      ['api', 2024],
+      ['api', 2025],
+    ],
+  });
+});
+
 test('columnar shape flattens object elements after zipping', () => {
   assert.deepEqual(table({
     period: ['Q1', 'Q2'],

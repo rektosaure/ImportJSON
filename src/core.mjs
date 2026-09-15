@@ -184,10 +184,10 @@ function columnarizeRecords(records) {
     }
 
     for (let index = 0; index < rowCount; index++) {
-      const shapedRecord = {};
-      for (const [key, value] of entries) {
-        shapedRecord[key] = Array.isArray(value) ? value[index] : value;
-      }
+      const shapedRecord = Object.fromEntries(entries.map(([key, value]) => [
+        key,
+        Array.isArray(value) ? value[index] : value,
+      ]));
       shapedRecords.push(shapedRecord);
     }
   }
