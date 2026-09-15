@@ -120,7 +120,7 @@ In the recommended Apps Script Library installation, the Script Cache belongs to
 
 The cache is an optimization only. Cache read/write failures, early eviction, quota pressure, or an oversized response do not produce cache-specific errors and fall back to normal HTTP behavior.
 
-ImportJSON does not store responses marked `Cache-Control: no-store`, `no-cache`, or `private`, nor responses with `Vary: *`. `max-age=0` and `s-maxage=0` also disable storage. A positive `max-age` or `s-maxage` shorter than 10 minutes shortens the cache lifetime; the cache never extends those values beyond its 10-minute maximum.
+ImportJSON does not store responses marked `Cache-Control: no-store`, `no-cache`, or `private`, nor responses with `Vary: *`. For shared-cache freshness, `s-maxage` takes precedence over `max-age` when present. An effective freshness value of `0` disables storage. A positive effective value shorter than 10 minutes shortens the cache lifetime; the cache never extends it beyond the 10-minute maximum.
 
 Only response bodies that complete the ImportJSON transformation successfully are written to the cache. HTTP failures, invalid JSON, invalid JSONPath, or shaping failures do not populate it.
 
