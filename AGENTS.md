@@ -1,51 +1,15 @@
 # AGENTS.md
 
-## Design
+Follow [`CONTRIBUTING.md`](CONTRIBUTING.md) for repository workflow, validation, documentation ownership, and pull request conventions.
 
-Keep the system explainable in a few minutes.
+## Agent-specific rules
 
-Preserve the product semantics defined in `docs/functional-specification.md` and the architectural boundaries documented in `docs/architecture.md`.
+Keep the system explainable in a few minutes. Prefer the smallest direct change that satisfies the current requirement and preserves the public contract in [`docs/functional-specification.md`](docs/functional-specification.md) and the boundaries in [`docs/architecture.md`](docs/architecture.md).
 
-Prefer obvious, direct code and the simplest design that satisfies the specification while keeping responsibilities explicit.
+Do not introduce speculative abstractions, compatibility paths, dependencies, infrastructure, or unrelated cleanup. New machinery needs a concrete current consumer or a documented invariant that it directly protects.
 
-Add dependencies, infrastructure, compatibility paths, abstractions, extension points, or framework machinery only for a concrete current need or a documented invariant they directly protect.
+Do not let implementation convenience decide an unresolved product question. When implementation and specification conflict, the specification is authoritative.
 
-New abstractions or infrastructure need a current consumer or documented invariant. Do not introduce one-use interfaces, factories, registries, or adapters without that justification.
+When intentionally changing observable behavior, update the functional specification and tests in the same change.
 
-Do not let implementation convenience silently decide an unresolved question. Decisions documented as unresolved must be resolved explicitly before becoming product behavior.
-
-## Changes
-
-Make the smallest coherent change required by the task.
-
-Keep changes scoped to the requested task. Do not mix in speculative cleanup, compatibility work, future infrastructure, unrelated refactors, renaming, or dependency upgrades.
-
-Refactor only when it is necessary to make the requested change coherent or to protect a documented invariant.
-
-Do not commit or push changes directly; use a dedicated branch and pull request.
-
-Pull request titles MUST use Conventional Commit format. The release workflow derives SemVer changes from squash-merged commit history, so use `feat:` for user-visible features, `fix:` for bug fixes, and `!` or a `BREAKING CHANGE:` footer for breaking changes. Use non-release types such as `docs:`, `test:`, `build:`, `ci:`, or `chore:` when no product version bump is intended.
-
-Keep contributor-facing workflow guidance in `CONTRIBUTING.md` aligned with these rules.
-
-Do not treat existing implementation behavior as authoritative when it conflicts with the specification.
-
-When intentionally changing public behavior, update the specification and tests in the same change.
-
-## Validation
-
-Use the repository's committed tooling and CI configuration as the source of truth for build, test, lint, format, and other validation commands.
-
-Do not invent commands or claim checks were run when they were not.
-
-Add or update tests for changed observable behavior and regressions.
-
-Report any validation that could not be performed.
-
-## Documentation
-
-Keep durable product semantics in the functional specification.
-
-Keep implementation rationale in focused documentation only when it is genuinely useful for future maintainers.
-
-Do not grow this file into a second specification.
+Use only the repository's committed validation commands. Never claim a check was run when it was not, and report validation that could not be performed.

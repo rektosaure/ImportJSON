@@ -1,14 +1,12 @@
 # Releasing
 
-ImportJSON releases are published manually from the current `main` commit through the **Publish release** GitHub Actions workflow.
+ImportJSON releases are published manually from `main` through the **Publish release** GitHub Actions workflow.
 
-Development uses branches, pull requests, squash merges into `main`, and Conventional Commit pull request titles. CI builds and tests every `main` commit and uploads the exact release candidate as the `importjson-release-candidate` artifact.
-
-To publish a product release, open **Actions → Publish release**, select `main`, and run the workflow. No version number, tag, GitHub Release, or Apps Script version is entered manually.
+The release operator supplies the product version explicitly. The workflow tests and builds the selected `main` commit, publishes that exact build to Apps Script, and creates the matching GitHub Release.
 
 ## One-time repository setup
 
-The publish workflow requires two GitHub Actions values:
+The workflow requires two GitHub Actions values:
 
 - repository variable `APPS_SCRIPT_ID`: the Script ID of the standalone Apps Script project used as the ImportJSON Library;
 - repository secret `CLASPRC_JSON`: the complete contents of `~/.clasprc.json` produced by `clasp login` for a Google account that can edit that Apps Script project.
@@ -17,56 +15,42 @@ The target Apps Script project must exist, be configured and shared as the produ
 
 Treat `CLASPRC_JSON` as a password. Never commit `.clasprc.json` or `.clasp.json`; both are ignored by Git.
 
-## Release validation
+## Choose the version
 
-A release is based on the exact candidate artifact produced by successful CI for the target `main` commit. CI is the source of truth for automated build, core, adapter, distribution, and JSONPath qualification checks.
+Use normal SemVer and enter the version without the `v` prefix when running the workflow, for example `1.1.0`.
 
-Before publication, run the manual [Google Sheets smoke tests](smoke-tests.md) against the exact candidate Library bundle and wrapper. Record the tested revision or bundle checksum with the result. After publication, repeat the smoke matrix against the immutable Apps Script Library version associated with the GitHub release.
+The workflow accepts the strict `X.Y.Z` form and publishes tag `vX.Y.Z`. Release versions are chosen explicitly; pull request titles and commit history do not calculate the next version.
 
-JSONPath dependency or integration changes must also satisfy the qualification requirements in [JSONPath Qualification](jsonpath-qualification.md).
+Choose the bump from the product change being released:
 
-Do not publish a candidate with failing CI or incomplete required smoke validation. The public behavior being validated is defined by the [Functional Specification](functional-specification.md).
+- patch for compatible bug fixes;
+- minor for compatible user-visible capabilities;
+- major for breaking public-contract changes.
+
+Git tags are the product-version source of truth. `package.json` remains a private build package and is not versioned with the product.
 
 ## Publish flow
 
-The workflow publishes exactly the current `main` commit. It:
+Open **Actions → Publish release**, select `main`, enter the version, and run the workflow.
 
-1. installs the repository tooling with `npm ci` from `package-lock.json`;
-2. locks the release SHA to the current HEAD of `main` and aborts if `main` moves;
-3. finds the successful `CI` push run for that exact SHA;
-4. downloads that run's `importjson-release-candidate` artifact instead of rebuilding;
-5. derives the product version from immutable SemVer tags and Conventional Commit history;
-6. prepares the exact validated Apps Script bundle and manifest for publication;
-7. rechecks that `main` still points at the locked release SHA immediately before Apps Script publication;
-8. pushes the validated Apps Script files and creates one immutable Apps Script version;
-9. generates `SHA256SUMS` and `release-manifest.json`;
-10. creates the `vX.Y.Z` tag and GitHub Release, or repairs the same release on a retry;
-11. uploads the validated bundle, Apps Script manifest, user-facing wrapper, dependency licenses, and release metadata to the GitHub Release.
+The workflow:
 
-The GitHub Release is created only after Apps Script publication succeeds. A failed Google publication therefore does not create a product release.
+1. checks out the `main` commit selected when the run starts;
+2. installs dependencies with `npm ci` from `package-lock.json`;
+3. validates the requested version and refuses a same-named tag that points to another commit;
+4. runs `npm test`, which builds the production Apps Script Library and executes the complete automated test suite;
+5. stages the generated Library files and `dist/ImportJSON.gs` wrapper as release assets;
+6. pushes the generated Apps Script project and creates one immutable Apps Script version, unless the same release version for the same Git commit was already created by an earlier attempt;
+7. generates `release-manifest.json` with the release identity and SHA-256 hashes of the deployed files and wrapper;
+8. creates the `vX.Y.Z` GitHub Release, or repairs that same release on a retry, and uploads the generated assets.
+
+The selected Git commit is immutable, so publication does not depend on `main` remaining unchanged while the workflow runs.
 
 `@google/clasp` is an exact direct development dependency installed from `package-lock.json`. Third-party GitHub Actions are referenced by immutable commit SHA.
 
-## Version calculation
+## Release assets
 
-The first public release is `v1.0.0`.
-
-After `v1.0.0`, squash-merged pull request titles drive SemVer changes and must use Conventional Commit format.
-
-- `fix:` requests a patch release;
-- `feat:` requests a minor release;
-- `!` in the Conventional Commit header or a `BREAKING CHANGE:` footer requests a major release;
-- `docs:`, `test:`, `build:`, `ci:`, and `chore:` do not request a product release.
-
-If several releasable commits exist, the strongest required bump wins.
-
-If there is no releasable commit since the previous tag, **Publish release** fails instead of creating an empty version.
-
-`package.json` remains a private build package and is not the product-version source of truth. Product versions are the immutable Git tags.
-
-## Release candidate
-
-CI stages the exact release candidate with these files:
+A release contains:
 
 ```text
 importjson-library.gs
@@ -74,40 +58,35 @@ appsscript.json
 ImportJSON.gs
 json-p3-LICENSE
 re2js-LICENSE
+release-manifest.json
 ```
 
-`ImportJSON.gs` is the small user-facing Google Sheets wrapper. It is part of the release identity even though the standalone Apps Script Library publication uses only `importjson-library.gs` and `appsscript.json`.
+`ImportJSON.gs` is the small user-facing Google Sheets wrapper. The standalone Apps Script Library publication uses only `importjson-library.gs` and `appsscript.json`.
 
-The publish workflow promotes these exact CI-produced files. It does not rebuild them.
+`release-manifest.json` records:
 
-## Release identity
-
-Product and Apps Script versions are different identifiers. For example:
-
-```text
-GitHub release:       v1.2.0
-Git commit:           0123456789abcdef...
-Apps Script version:  17
-Bundle SHA-256:       9fa8...
-```
-
-`release-manifest.json` records the SemVer release, exact Git commit, CI run, Apps Script project/version, installed publishing tool version, and hashes of the deployed Apps Script files plus the user-facing wrapper.
-
-`SHA256SUMS` records hashes for every file copied from the validated CI release candidate.
+- the SemVer release and exact Git commit;
+- the Apps Script project and immutable Apps Script version;
+- SHA-256 hashes for the Library bundle, Apps Script manifest, and user-facing wrapper;
+- the installed `@google/clasp` version used to publish.
 
 Do not encode the Apps Script integer into product SemVer and do not maintain a second handwritten version table.
 
+## Validation
+
+Automated release validation is `npm test` executed inside the release workflow on the exact commit being published. The tests include core behavior, Apps Script adapter behavior, distribution checks, and the pinned JSONPath qualification described in [Architecture](architecture.md).
+
+After publication, run the manual [Google Sheets smoke tests](smoke-tests.md) against the immutable Apps Script Library version and wrapper from the same GitHub Release. These checks cover only behavior that requires the real Google Sheets / Apps Script runtime.
+
+If a release fails its real-runtime smoke test, fix the problem through the normal branch and pull-request workflow and publish a new version. Do not mutate an already consumed product contract to hide a failed release.
+
 ## Idempotence and recovery
 
-The Apps Script version description contains the product tag and release Git SHA. Before creating a version, the workflow checks whether that exact description already exists and reuses it on a retry.
+The Apps Script version description contains the product tag and release Git SHA. On retry, the workflow reuses an existing Apps Script version with that exact description instead of creating another one.
 
-If the SemVer tag already points at the current `main` commit, the version calculator enters retry mode instead of incrementing the version again. If the GitHub Release already exists, its assets are replaced in place.
+If the requested Git tag already points to the same release commit, the workflow treats it as the same release identity. If the GitHub Release already exists, its assets are replaced in place.
 
-A rerun after a partial failure therefore does not consume another product version or Apps Script version.
-
-## Artifact availability
-
-Publication depends on the `importjson-release-candidate` artifact from the successful CI run for the current `main` commit. Publish while that artifact is retained by GitHub Actions. If it has expired, rerun that exact CI commit before publishing; the publish workflow does not rebuild different bytes.
+A retry after a partial infrastructure failure therefore does not consume another product version or Apps Script version.
 
 ## Version budget
 

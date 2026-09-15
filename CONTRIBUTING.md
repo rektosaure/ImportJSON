@@ -15,7 +15,7 @@ Do not push changes directly to `main`.
 
 ## Pull request titles
 
-Pull request titles are validated by CI and must use Conventional Commit format.
+Use Conventional Commit format so the project history remains easy to scan.
 
 Examples:
 
@@ -24,13 +24,11 @@ feat: add a user-visible capability
 fix(core): preserve deterministic ordering
 docs: clarify installation
 test: cover a regression
-ci: harden release publication
+ci: simplify release publication
 feat!: replace a public API contract
 ```
 
-`feat:` requests a minor release after `v1.0.0`, `fix:` requests a patch release, and `!` or a `BREAKING CHANGE:` footer requests a major release. Non-product types such as `docs:`, `test:`, `build:`, `ci:`, and `chore:` do not request a release.
-
-When squash-merging, keep the pull request title as the squash commit title so release semantics remain deterministic.
+Release versions are chosen explicitly when the **Publish release** workflow is run; pull request titles do not calculate the next version.
 
 ## Validation
 
@@ -54,9 +52,8 @@ Each maintained document has one primary responsibility:
 - [`README.md`](README.md) is the landing page: current installation, quick start, and pointers to deeper documentation.
 - [`docs/user-guide.md`](docs/user-guide.md) is the complete practical reference for users.
 - [`docs/functional-specification.md`](docs/functional-specification.md) is the normative contract for observable public behavior.
-- [`docs/architecture.md`](docs/architecture.md) documents technical boundaries and implementation invariants without restating the full behavioral contract.
+- [`docs/architecture.md`](docs/architecture.md) documents technical boundaries, runtime integration, and the rationale for specialized qualification.
 - [`docs/releasing.md`](docs/releasing.md) documents publication, release identity, and release-specific checks.
-- [`docs/jsonpath-qualification.md`](docs/jsonpath-qualification.md) documents qualification of the RFC 9535 engine and its Apps Script compatibility layer.
 - [`docs/smoke-tests.md`](docs/smoke-tests.md) contains only the manual checks that require the real Google Sheets / Apps Script runtime.
 
 Put new information in the document that owns it. Prefer links over repeating the same rule in several places.
