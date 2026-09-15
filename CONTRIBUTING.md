@@ -49,16 +49,18 @@ If public behavior changes, update the functional specification and tests in the
 
 Each maintained document has one primary responsibility:
 
-- [`README.md`](README.md) is the landing page: current installation, quick start, and pointers to deeper documentation.
-- [`docs/user-guide.md`](docs/user-guide.md) is the complete practical reference for users.
+- [`README.md`](README.md) is the landing page: current installation, quick start, common operations, and pointers to deeper documentation.
+- [`docs/user-guide.md`](docs/user-guide.md) is the practical user reference. It explains how to use the current product but does not override the functional specification.
 - [`docs/functional-specification.md`](docs/functional-specification.md) is the normative contract for observable public behavior.
 - [`docs/architecture.md`](docs/architecture.md) documents technical boundaries, runtime integration, and the rationale for specialized qualification.
 - [`docs/releasing.md`](docs/releasing.md) documents publication, release identity, and release-specific checks.
-- [`docs/smoke-tests.md`](docs/smoke-tests.md) contains only the manual checks that require the real Google Sheets / Apps Script runtime.
+- [`docs/smoke-tests.md`](docs/smoke-tests.md) contains only manual checks that require the real Google Sheets / Apps Script runtime.
+- [`SECURITY.md`](SECURITY.md) documents vulnerability reporting and supported security-fix scope.
+- [`AGENTS.md`](AGENTS.md) contains repository instructions specific to coding agents and delegates general workflow rules back to this guide.
 
-Put new information in the document that owns it. Prefer links over repeating the same rule in several places.
+Put new information in the document that owns it. Prefer links over copying the same explanation into several files. Repetition is acceptable only when the shorter copy is necessary for a reader to use that document independently, such as installation steps in the README and User Guide.
 
-Keep maintained documentation in English and about the current product. Prefer provider-independent examples unless a real endpoint is required for runtime validation.
+Keep maintained documentation in English and about the current product. Remove obsolete behavior rather than preserving historical migration prose in current-product documentation. Prefer provider-independent examples unless a real endpoint is required for runtime validation.
 
 ## Design constraints
 

@@ -2,37 +2,29 @@
 
 ImportJSON is a Google Sheets custom function that fetches one JSON document from an HTTP or HTTPS URL and turns selected JSON values into a table.
 
-It uses standard JSON tools: JSONPath (RFC 9535) selects nodes, JSON Pointer (RFC 6901) identifies columns, and an optional `shape` argument performs one explicit structural transformation when nested data needs to become rows.
+It uses standard JSON tools: [JSONPath (RFC 9535)](https://www.rfc-editor.org/rfc/rfc9535) selects nodes, [JSON Pointer (RFC 6901)](https://www.rfc-editor.org/rfc/rfc6901) identifies columns, and an optional `shape` argument performs one explicit structural transformation when nested data needs to become rows.
 
 ## Installation
 
-Each ImportJSON release supports two installation modes. In both cases, use files from a GitHub release rather than a development branch.
+Use artifacts from a GitHub release, not files from a development branch.
 
 ### Apps Script Library (recommended)
 
-This keeps the full implementation in the published Library and adds only a small wrapper to the spreadsheet project.
-
 1. Open the [latest GitHub release](https://github.com/rektosaure/ImportJSON/releases/latest).
-2. Open its `release-manifest.json` asset and note `appsScript.scriptId` and `appsScript.version`.
-3. In the Google Sheet, choose **Extensions → Apps Script**.
-4. Next to **Libraries**, choose **Add a library**, paste the Script ID from the manifest, and choose **Look up**.
-5. Select the Apps Script version from the manifest, set the Library identifier to `ImportJSONLib`, and add the Library.
-6. Download `ImportJSON.gs` from that same GitHub release and copy it into the bound Apps Script project.
-7. Save the project and return to the sheet.
+2. Open `release-manifest.json` and note `appsScript.scriptId` and `appsScript.version`.
+3. In **Extensions → Apps Script**, add that immutable Library version with identifier `ImportJSONLib`.
+4. Copy `ImportJSON.gs` from the same release into the spreadsheet's bound Apps Script project.
+5. Save and return to the sheet.
 
-Always use the wrapper and immutable Apps Script Library version from the same release.
+The wrapper and Apps Script Library version must come from the same release.
 
 ### Manual installation
 
-This installs the complete implementation directly in the spreadsheet project and does not use an Apps Script Library.
-
 1. Open the [latest GitHub release](https://github.com/rektosaure/ImportJSON/releases/latest).
-2. Download `importjson-library.gs`.
-3. In the Google Sheet, choose **Extensions → Apps Script**.
-4. Create a script file in the bound project and replace its contents with the contents of `importjson-library.gs`.
-5. Save the project and return to the sheet.
+2. Copy `importjson-library.gs` into the spreadsheet's bound Apps Script project.
+3. Save and return to the sheet.
 
-Do not also install the `ImportJSON.gs` wrapper in manual mode: the complete bundle already exposes the `IMPORTJSON` custom function.
+Do not add `ImportJSON.gs` in manual mode: the complete bundle already exposes `IMPORTJSON`.
 
 ## Quick start
 
@@ -40,7 +32,7 @@ Do not also install the `ImportJSON.gs` wrapper in manual mode: the complete bun
 IMPORTJSON(url, [query], [columns], [shape], [refresh])
 ```
 
-If `A1` contains the URL of a JSON array such as:
+If `A1` contains the URL of:
 
 ```json
 [
@@ -65,8 +57,6 @@ FALSE             2     Beta
 
 Some Google Sheets locales use semicolons instead of commas as formula argument separators.
 
-ImportJSON keeps successful anonymous HTTP responses in a best-effort cache for up to 10 minutes. The same URL can therefore be reused by multiple formulas without necessarily issuing another network request. Set the optional `refresh` argument to `TRUE` or `1` to bypass the cache for that evaluation and replace the cached response after a successful import.
-
 ## Common operations
 
 Select records with JSONPath:
@@ -75,7 +65,7 @@ Select records with JSONPath:
 =IMPORTJSON(A1, "$.users[*]")
 ```
 
-Project one JSON Pointer directly, or place several pointers in a one-dimensional cell range:
+Project one JSON Pointer directly, or several pointers from a one-dimensional cell range:
 
 ```gs
 =IMPORTJSON(A1, "$.users[*]", "/name")
@@ -94,19 +84,27 @@ Convert an object of parallel arrays into rows:
 =IMPORTJSON(A1, , , "columnar")
 ```
 
-Force a fresh HTTP request with a checkbox or boolean value in `B1`:
+Use a checkbox or boolean value in `B1` to force a fresh request for one evaluation:
 
 ```gs
 =IMPORTJSON(A1, , , , B1)
 ```
 
-`FALSE` or `0` uses the cache normally. `TRUE` or `1` bypasses cache lookup for that evaluation.
+`FALSE`, `0`, or blank uses the cache normally. `TRUE` or `1` bypasses cache lookup for that evaluation.
+
+## HTTP cache
+
+ImportJSON keeps eligible successful response bodies in a best-effort Apps Script cache for at most 10 minutes. Cache identity uses the exact URL string supplied to ImportJSON; `query`, `columns`, and `shape` do not participate.
+
+In the recommended Library installation, that cache belongs to the Library and can be reused by different spreadsheets using the same Library. See the [User Guide](docs/user-guide.md#http-cache-refresh-and-sensitive-urls) before using signed, tokenized, private, or otherwise sensitive URLs.
 
 ## Documentation
 
-See the [User Guide](docs/user-guide.md) for the complete practical reference: arguments, selection, projection, shaping, rendering, HTTP caching, errors, limits, recipes, and end-to-end examples.
-
-To contribute, start with [CONTRIBUTING.md](CONTRIBUTING.md). The contributor guide points to the normative specification and maintainer documentation when needed.
+- [User Guide](docs/user-guide.md) — installation, arguments, recipes, cache behavior, errors, and limits.
+- [Functional Specification](docs/functional-specification.md) — normative observable behavior.
+- [Architecture](docs/architecture.md) — implementation boundaries and runtime integration.
+- [Contributing](CONTRIBUTING.md) — development workflow and documentation ownership.
+- [Releasing](docs/releasing.md) — publication and release identity.
 
 ## License
 

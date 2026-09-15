@@ -64,7 +64,7 @@ At most one shaping operation is applied per invocation.
 
 A multi-cell range used as `url` produces `INVALID_ARGUMENT`. An invalid URL or unsupported scheme produces `INVALID_URL`.
 
-ImportJSON maintains a best-effort cache of successful anonymous HTTP response bodies. The cache identity is the URL; `query`, `columns`, and `shape` do not participate in HTTP cache identity.
+ImportJSON maintains a best-effort cache of successful HTTP response bodies. Cache identity is the exact URL string accepted after single-cell extraction and URL validation. ImportJSON does not canonicalize URLs for cache identity: textually different URL strings use different entries even if an origin would treat them as equivalent. `query`, `columns`, `shape`, and `refresh` do not participate in cache identity.
 
 When cache lookup is permitted and an entry is available, the adapter MAY satisfy the invocation without a network request. A missing, expired, evicted, oversized, unavailable, or otherwise unusable cache entry MUST be treated as a normal cache miss and MUST NOT introduce a new public error.
 
@@ -120,6 +120,8 @@ Every selected node initially becomes one selected record. Shaping MAY transform
 
 Properties are identified relative to each logical row by RFC 6901 JSON Pointer, for example `/id`, `/details/name`, or `/metrics/value`. Standard `~0` and `~1` escaping applies.
 
+The RFC 6901 empty pointer denotes the whole value, but the public Sheets API reserves an empty string as an omitted `columns` or `shape` argument. Public JSON Pointer arguments are therefore non-empty and begin with `/`.
+
 ## 6. Automatic projection
 
 When `columns` is omitted, ImportJSON MUST project every logical row with the same rules:
@@ -174,7 +176,7 @@ Strings MUST be preserved without implicit trimming or date conversion. Booleans
 After omission normalization, a supplied `shape` MUST resolve to one non-empty string containing exactly one of:
 
 - `columnar`; or
-- an RFC 6901 JSON Pointer relative to each selected record.
+- a non-empty RFC 6901 JSON Pointer relative to each selected record.
 
 Any other form produces `INVALID_ARGUMENT`.
 
@@ -244,7 +246,7 @@ Earlier optional arguments MAY be left blank when `refresh` is supplied because 
 IMPORTJSON(A1, , , , B1)
 ```
 
-A successful cache-eligible refresh replaces the existing cached response for the URL. A failed network request or failed data transformation does not replace the previous cached response. A fresh response that forbids shared caching under Section 3 removes the prior entry on a best-effort basis.
+`refresh` does not change cache identity. A successful cache-eligible refresh replaces the existing cached response for the URL. A failed network request or failed data transformation does not replace the previous cached response. A fresh response that forbids shared caching under Section 3 removes the prior entry on a best-effort basis.
 
 If `refresh` remains `TRUE` or `1`, every later Sheets reevaluation of that formula bypasses cache lookup again. A checkbox therefore works naturally as a manual refresh control: switch it to `TRUE` to force a request, then back to `FALSE` to resume normal cache use.
 
@@ -296,14 +298,13 @@ A response that cannot be stored by Apps Script CacheService MUST still be proce
 
 ## 16. Scope
 
-The public API consists only of `IMPORTJSON` with the arguments and behavior defined above. It does not define additional option languages, automatic date conversion, automatic recursive array expansion, joins between sources, JSON writing, custom HTTP methods, authentication, or a second public table function.
+The public API consists only of `IMPORTJSON` with the arguments and behavior defined above. It does not define additional option languages, automatic date conversion, automatic recursive array expansion, joins between sources, JSON writing, custom HTTP methods, authentication or credential storage, or a second public table function.
 
 ## References
 
-- BCP 14 — Requirement Levels
-- RFC 2119 / RFC 8174 — Requirement Levels
-- RFC 8259 — JSON
-- RFC 9535 — JSONPath
-- RFC 6901 — JSON Pointer
-- Google Apps Script — Custom Functions in Google Sheets
-- Google Apps Script — Cache Service
+- [BCP 14 / RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) — requirement levels
+- [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) — JSON
+- [RFC 9535](https://www.rfc-editor.org/rfc/rfc9535) — JSONPath
+- [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) — JSON Pointer
+- [Google Apps Script — Custom Functions in Google Sheets](https://developers.google.com/apps-script/guides/sheets/functions)
+- [Google Apps Script — Cache Service](https://developers.google.com/apps-script/reference/cache/cache-service)
