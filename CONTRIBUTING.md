@@ -61,6 +61,8 @@ Each maintained document has one primary responsibility:
 
 Put new information in the document that owns it. Prefer links over repeating the same rule in several places.
 
+Keep maintained documentation in English and about the current product. Prefer provider-independent examples unless a real endpoint is required for runtime validation.
+
 ## Design constraints
 
 Prefer direct code over speculative abstraction. Do not add compatibility paths, dependencies, frameworks, or extension points without a concrete current requirement.
