@@ -10,6 +10,7 @@ function withRuntime({
   headers = {},
   cacheGetError,
   cachePutError,
+  cacheRemoveError,
   cacheServiceError,
 } = {}, callback) {
   const previousUrlFetchApp = globalThis.UrlFetchApp;
@@ -18,6 +19,7 @@ function withRuntime({
   const calls = [];
   const cacheGets = [];
   const cachePuts = [];
+  const cacheRemoves = [];
   const values = new Map();
 
   const cache = {
@@ -30,6 +32,11 @@ function withRuntime({
       cachePuts.push({ key, value, expirationInSeconds });
       if (cachePutError) throw cachePutError;
       values.set(key, value);
+    },
+    remove(key) {
+      cacheRemoves.push(key);
+      if (cacheRemoveError) throw cacheRemoveError;
+      values.delete(key);
     },
   };
 
@@ -68,7 +75,7 @@ function withRuntime({
   };
 
   try {
-    return callback({ calls, cacheGets, cachePuts, values });
+    return callback({ calls, cacheGets, cachePuts, cacheRemoves, values });
   } finally {
     if (previousUrlFetchApp === undefined) delete globalThis.UrlFetchApp;
     else globalThis.UrlFetchApp = previousUrlFetchApp;
@@ -347,7 +354,7 @@ test('cache keys are stable per URL, hashed, and do not expose the URL', () => {
   });
 });
 
-test('cache read and write failures never change IMPORTJSON success behavior', () => {
+test('cache read, write, remove, and service failures never change IMPORTJSON success behavior', () => {
   withRuntime({
     body: '[{"a":1}]',
     cacheGetError: new Error('cache unavailable'),
@@ -362,6 +369,18 @@ test('cache read and write failures never change IMPORTJSON success behavior', (
   withRuntime({
     body: '[{"a":1}]',
     cachePutError: new Error('value too large'),
+  }, ({ calls }) => {
+    assert.deepEqual(runImportJSON('https://example.test/data.json'), [
+      ['/a'],
+      [1],
+    ]);
+    assert.equal(calls.length, 1);
+  });
+
+  withRuntime({
+    body: '[{"a":1}]',
+    headers: { 'Cache-Control': 'no-store' },
+    cacheRemoveError: new Error('remove unavailable'),
   }, ({ calls }) => {
     assert.deepEqual(runImportJSON('https://example.test/data.json'), [
       ['/a'],
@@ -399,6 +418,31 @@ test('shared-cache HTTP directives can disable storage', () => {
   }, ({ cachePuts }) => {
     runImportJSON('https://example.test/data.json');
     assert.equal(cachePuts.length, 0);
+  });
+});
+
+test('fresh response that forbids shared storage clears an older cached body', () => {
+  withRuntime({
+    body: (fetchNumber) => `[{"a":${fetchNumber}}]`,
+    headers: (fetchNumber) => (
+      fetchNumber === 2 ? { 'Cache-Control': 'no-store' } : {}
+    ),
+  }, ({ calls, cacheRemoves }) => {
+    assert.deepEqual(runImportJSON('https://example.test/data.json'), [
+      ['/a'],
+      [1],
+    ]);
+    assert.deepEqual(runImportJSON('https://example.test/data.json', undefined, undefined, undefined, true), [
+      ['/a'],
+      [2],
+    ]);
+    assert.deepEqual(runImportJSON('https://example.test/data.json'), [
+      ['/a'],
+      [3],
+    ]);
+
+    assert.equal(calls.length, 3);
+    assert.equal(cacheRemoves.length, 1);
   });
 });
 
