@@ -37,7 +37,7 @@ Do not also install the `ImportJSON.gs` wrapper in manual mode: the complete bun
 ## Quick start
 
 ```text
-IMPORTJSON(url, [query], [columns], [shape], [refreshKey])
+IMPORTJSON(url, [query], [columns], [shape], [refresh])
 ```
 
 If `A1` contains the URL of a JSON array such as:
@@ -64,6 +64,8 @@ FALSE             2     Beta
 ```
 
 Some Google Sheets locales use semicolons instead of commas as formula argument separators.
+
+ImportJSON keeps successful anonymous HTTP responses in a best-effort cache for up to 10 minutes. The same URL can therefore be reused by multiple formulas without necessarily issuing another network request. Set the optional `refresh` argument to `TRUE` or `1` to bypass the cache for that evaluation and replace the cached response after a successful import.
 
 ## Common operations
 
@@ -92,9 +94,17 @@ Convert an object of parallel arrays into rows:
 =IMPORTJSON(A1, , , "columnar")
 ```
 
+Force a fresh HTTP request with a checkbox or boolean value in `B1`:
+
+```gs
+=IMPORTJSON(A1, , , , B1)
+```
+
+`FALSE` or `0` uses the cache normally. `TRUE` or `1` bypasses cache lookup for that evaluation.
+
 ## Documentation
 
-See the [User Guide](docs/user-guide.md) for the complete practical reference: arguments, selection, projection, shaping, rendering, errors, limits, recipes, and end-to-end examples.
+See the [User Guide](docs/user-guide.md) for the complete practical reference: arguments, selection, projection, shaping, rendering, HTTP caching, errors, limits, recipes, and end-to-end examples.
 
 To contribute, start with [CONTRIBUTING.md](CONTRIBUTING.md). The contributor guide points to the normative specification and maintainer documentation when needed.
 
