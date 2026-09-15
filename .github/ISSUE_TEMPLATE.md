@@ -21,7 +21,6 @@ Do not include passwords, API keys, tokens, private URLs, or sensitive response 
 
 - ImportJSON version:
 - Installation: Library / manual bundle
-- `refresh`: omitted / FALSE / TRUE
 - Other relevant details:
 
 ## Additional context
