@@ -5,7 +5,7 @@ ImportJSON fetches one JSON document from an HTTP or HTTPS URL and turns selecte
 This guide is the complete practical reference for the public `IMPORTJSON` function. The [Functional Specification](functional-specification.md) is the normative contract when exact observable behavior needs to be resolved.
 
 ```text
-IMPORTJSON(url, [query], [columns], [shape], [refreshKey])
+IMPORTJSON(url, [query], [columns], [shape], [refresh])
 ```
 
 Examples use commas as formula argument separators. Some Google Sheets locales require semicolons instead.
@@ -44,6 +44,10 @@ The source URL must be reachable by an HTTP or HTTPS GET request from Apps Scrip
 ## Mental model
 
 ```text
+HTTP URL
+    ↓
+HTTP cache / GET
+    ↓
 JSON document
     ↓
 query
@@ -71,7 +75,7 @@ Google Sheets
 | `query` | Optional RFC 9535 JSONPath expression. A literal string or one cell is accepted. |
 | `columns` | Optional RFC 6901 JSON Pointer, or a horizontal/vertical range containing JSON Pointers. |
 | `shape` | Optional JSON Pointer identifying one array to expand, or `"columnar"`. |
-| `refreshKey` | Optional recalculation dependency; ignored by the data engine. |
+| `refresh` | Optional `TRUE`/`1` to bypass HTTP cache lookup for this evaluation. `FALSE`/`0` or blank uses the cache normally. |
 
 For `query`, `columns`, and `shape`, an empty string is always treated as omitted. This applies to `""` and to a single blank cell, whether or not a later optional argument is present.
 
@@ -95,7 +99,30 @@ A blank entry inside a multi-cell `columns` range is different: it is an invalid
 
 `url` must be a non-empty absolute `http://` or `https://` URL. A multi-cell range is invalid.
 
-ImportJSON performs one GET request, follows redirects, and accepts only a final `2xx` response. A network failure or non-`2xx` response produces `HTTP_ERROR`. A successful response whose body is not valid JSON produces `INVALID_JSON`.
+ImportJSON may satisfy an invocation from its HTTP cache. On a cache miss it performs one GET request, follows redirects, and accepts only a final `2xx` response. A network failure or non-`2xx` response produces `HTTP_ERROR`. A successful response whose body is not valid JSON produces `INVALID_JSON`.
+
+## HTTP cache
+
+ImportJSON keeps successful anonymous HTTP response bodies in a best-effort Apps Script cache. The default requested lifetime is 10 minutes. Google may evict entries earlier, and responses that are too large for CacheService simply run without caching.
+
+The cache identity is the URL. `query`, `columns`, and `shape` do not affect it, so formulas that use the same URL with different JSONPath expressions or projections can reuse the same downloaded JSON body.
+
+For example:
+
+```gs
+=IMPORTJSON(A1, "$.users[*]", "/name")
+=IMPORTJSON(A1, "$.users[*]", "/email")
+```
+
+can share one cached HTTP response for `A1` while still performing their transformations independently.
+
+In the recommended Apps Script Library installation, the Script Cache belongs to the Library and can be reused by different spreadsheets using that Library. In manual installation mode, the same code uses the bound Apps Script project's own Script Cache. This affects cache hit rate, not table semantics.
+
+The cache is an optimization only. Cache read/write failures, early eviction, quota pressure, or an oversized response do not produce cache-specific errors and fall back to normal HTTP behavior.
+
+ImportJSON does not store responses marked `Cache-Control: no-store`, `no-cache`, or `private`, nor responses with `Vary: *`. `max-age=0` and `s-maxage=0` also disable storage. A positive `max-age` or `s-maxage` shorter than 10 minutes shortens the cache lifetime; the cache never extends those values beyond its 10-minute maximum.
+
+Only response bodies that complete the ImportJSON transformation successfully are written to the cache. HTTP failures, invalid JSON, invalid JSONPath, or shaping failures do not populate it.
 
 ## `query`: JSONPath selection
 
@@ -313,19 +340,27 @@ If direct arrays have different lengths, ImportJSON produces `COLUMN_LENGTH_MISM
 
 If `columnar` produces zero rows, automatic projection has no schema and the Sheets result is one blank cell. Supply explicit `columns` when headers should remain present without data rows.
 
-## `refreshKey`
+## `refresh`
 
-`refreshKey` affects formula dependency tracking but is ignored by the data engine.
+`refresh` controls whether the current evaluation may use a cached HTTP response.
 
-A practical pattern is a manually edited cell:
+Accepted values are:
+
+- omitted, blank, `FALSE`, or `0`: normal cache behavior;
+- `TRUE` or `1`: bypass cache lookup and perform a fresh GET;
+- anything else, including a multi-cell range: `INVALID_ARGUMENT`.
+
+A practical pattern is a checkbox in `B1`:
 
 ```gs
 =IMPORTJSON(A1, , , , B1)
 ```
 
-Changing `B1` can cause Sheets to reevaluate the formula without changing the import semantics. Do not use volatile functions such as `NOW()`, `RAND()`, or `RANDBETWEEN()` for this purpose.
+Switching the checkbox to `TRUE` causes Sheets to reevaluate the formula and ImportJSON to bypass cache lookup. After a successful cache-eligible import, the fresh response replaces the previous cached response. Switch the checkbox back to `FALSE` to resume normal cache use.
 
-ImportJSON has no private HTTP cache and does not promise that remote changes are observed until Sheets reevaluates the formula.
+If `refresh` is left `TRUE`, every later Sheets reevaluation of that formula bypasses the cache again. A failed refresh does not replace a previously cached successful response.
+
+Do not use volatile functions such as `NOW()`, `RAND()`, or `RANDBETWEEN()` for this purpose.
 
 ## `null`, missing values, and empty results
 
@@ -349,7 +384,7 @@ Column order is different:
 
 | Code | Meaning |
 | --- | --- |
-| `INVALID_ARGUMENT` | An argument has an unsupported type or shape, or contains an invalid/duplicate JSON Pointer. |
+| `INVALID_ARGUMENT` | An argument has an unsupported type or shape, contains an invalid/duplicate JSON Pointer, or `refresh` is not blank, `TRUE`/`FALSE`, or `1`/`0`. |
 | `INVALID_URL` | `url` is not an absolute HTTP or HTTPS URL. |
 | `HTTP_ERROR` | The request failed or the final status was not `2xx`. |
 | `INVALID_JSON` | The successful response body is not valid JSON. |
@@ -364,9 +399,11 @@ A JSONPath selection with no matches is not an error.
 
 The Apps Script adapter sets a 20-second HTTP timeout. A fetch timeout is reported as `HTTP_ERROR`.
 
-The function also runs within Google Apps Script and Google Sheets limits, including execution, service, cell, and spill constraints. The current implementation does not define additional ImportJSON error codes for those platform limits. A spill conflict caused by occupied destination cells is a Sheets error.
+The function also runs within Google Apps Script and Google Sheets limits, including execution, service, cache, cell, and spill constraints. The current implementation does not define additional ImportJSON error codes for those platform limits. A spill conflict caused by occupied destination cells is a Sheets error.
 
-ImportJSON performs one fetch per invocation, not one fetch per output row or column.
+The HTTP cache requests at most 600 seconds of lifetime. CacheService may evict entries earlier and may reject values that exceed its per-entry limit. Such cache failures are ignored and the import result is still returned normally.
+
+A cache miss or forced refresh performs one fetch for the invocation, not one fetch per output row or column. A cache hit performs no fetch.
 
 ## Practical recipes
 
@@ -400,7 +437,7 @@ Convert an object-of-arrays:
 =IMPORTJSON(A1, , , "columnar")
 ```
 
-Add a manual refresh dependency:
+Use a checkbox in `B1` as a manual refresh control:
 
 ```gs
 =IMPORTJSON(A1, , , , B1)
@@ -419,6 +456,8 @@ Add a manual refresh dependency:
 **Treating `$` as omitted query on a root array.** `$` selects the root array itself; omitted `query` selects its elements as records.
 
 **Putting several pointers in one text argument.** Multiple projected columns must come from a one-dimensional cell range.
+
+**Leaving `refresh` set to `TRUE`.** This is valid, but every later reevaluation bypasses the cache. Set the checkbox back to `FALSE` after the forced refresh when normal caching is desired.
 
 ## Complete examples
 
