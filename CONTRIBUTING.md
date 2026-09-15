@@ -1,6 +1,6 @@
 # Contributing
 
-ImportJSON is a small, specification-driven project. Keep changes focused and preserve the public behavior defined in `docs/functional-specification.md`.
+ImportJSON is a small, specification-driven project. Keep changes focused and preserve the public behavior defined in [`docs/functional-specification.md`](docs/functional-specification.md).
 
 ## Development workflow
 
@@ -43,7 +43,23 @@ npm test
 
 `npm test` builds the production Apps Script Library bundle and runs the full automated test suite, including the pinned RFC 9535 JSONPath qualification.
 
+The committed tests and CI configuration are the source of truth for automated validation. Do not maintain a second prose checklist that duplicates test coverage.
+
 If public behavior changes, update the functional specification and tests in the same pull request. If architecture or release invariants change, update the corresponding focused documentation.
+
+## Documentation ownership
+
+Each maintained document has one primary responsibility:
+
+- [`README.md`](README.md) is the landing page: current installation, quick start, and pointers to deeper documentation.
+- [`docs/user-guide.md`](docs/user-guide.md) is the complete practical reference for users.
+- [`docs/functional-specification.md`](docs/functional-specification.md) is the normative contract for observable public behavior.
+- [`docs/architecture.md`](docs/architecture.md) documents technical boundaries and implementation invariants without restating the full behavioral contract.
+- [`docs/releasing.md`](docs/releasing.md) documents publication, release identity, and release-specific checks.
+- [`docs/jsonpath-qualification.md`](docs/jsonpath-qualification.md) documents qualification of the RFC 9535 engine and its Apps Script compatibility layer.
+- [`docs/smoke-tests.md`](docs/smoke-tests.md) contains only the manual checks that require the real Google Sheets / Apps Script runtime.
+
+Put new information in the document that owns it. Prefer links over repeating the same rule in several places.
 
 ## Design constraints
 
