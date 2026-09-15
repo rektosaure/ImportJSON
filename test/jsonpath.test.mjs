@@ -12,6 +12,18 @@ import { TextEncoder as AppsScriptTextEncoder } from '../src/apps-script-text-en
 const ctsBytes = await readFile(new URL('./jsonpath/fixtures/cts.json', import.meta.url));
 const { tests } = JSON.parse(ctsBytes);
 const ctsSha256 = 'f0932266a108d7b927f9a3fcc56e857f96c2bcd65c2acc25b70f3666b1dce7c3';
+const expectedCtsFailures = [
+  {
+    name: 'functions, match, explicit caret',
+    selector: "$[?match(@, '^ab.*')]",
+    reason: 'values or normalized paths differ',
+  },
+  {
+    name: 'functions, match, explicit dollar',
+    selector: "$[?match(@, '.*bc$')]",
+    reason: 'values or normalized paths differ',
+  },
+];
 const textEncoderShimPath = fileURLToPath(
   new URL('../src/apps-script-text-encoder.mjs', import.meta.url),
 );
@@ -66,8 +78,10 @@ test('harness fails on accepted invalid queries and errors from valid queries', 
     { selector: '$', document: 1, result: [1], result_paths: ['$'] }), null);
 });
 
-test('public JSONPath environment passes the complete pinned CTS', () => {
-  assert.deepEqual(checkSuite(select, tests).failures, []);
+test('public JSONPath environment matches pinned CTS except RFC 9485 anchor divergences', () => {
+  const report = checkSuite(select, tests);
+  assert.equal(report.passed, tests.length - expectedCtsFailures.length);
+  assert.deepEqual(report.failures, expectedCtsFailures);
 });
 
 test('object ordering handles numeric-looking names and Unicode code points', () => {
@@ -87,6 +101,23 @@ test('invalid regex patterns are treated as no match', () => {
   assert.deepEqual(select(['value'], "$[?search(@, '[')]"), []);
 });
 
+test('I-Regexp caret and dollar stay literal for match and search', () => {
+  assert.deepEqual(select(['^ab', '^abx', 'ab'], "$[?match(@, '^ab')]").map((node) => node.value),
+    ['^ab']);
+  assert.deepEqual(select(['ab$', 'xab$', 'ab'], "$[?match(@, 'ab$')]").map((node) => node.value),
+    ['ab$']);
+  assert.deepEqual(select(['a^b', 'ab'], "$[?match(@, 'a^b')]").map((node) => node.value),
+    ['a^b']);
+  assert.deepEqual(select(['a$b', 'ab'], "$[?match(@, 'a$b')]").map((node) => node.value),
+    ['a$b']);
+  assert.deepEqual(select(['x^aby', 'ab at start', 'none'], "$[?search(@, '^ab')]").map((node) => node.value),
+    ['x^aby']);
+  assert.deepEqual(select(['xab$y', 'ends ab', 'none'], "$[?search(@, 'ab$')]").map((node) => node.value),
+    ['xab$y']);
+  assert.deepEqual(select(['a', 'b', '^'], "$[?match(@, '[^b]')]").map((node) => node.value),
+    ['a', '^']);
+});
+
 test('Apps Script TextEncoder shim is limited to json-p3 hexadecimal parsing', async () => {
   const raw = await readFile(new URL('../node_modules/json-p3/dist/json-p3.esm.js', import.meta.url), 'utf8');
   assert.equal(raw.match(/new TextEncoder\(\)/g)?.length ?? 0, 1);
@@ -96,7 +127,7 @@ test('Apps Script TextEncoder shim is limited to json-p3 hexadecimal parsing', a
   assert.throws(() => new AppsScriptTextEncoder().encode('é'), /only supports ASCII/);
 });
 
-test('public JSONPath environment passes the full CTS in an Apps Script-like bundle', async () => {
+test('public JSONPath environment qualifies in an Apps Script-like bundle', async () => {
   const source = await buildForAppsScript(
     new URL('./jsonpath/apps-script.mjs', import.meta.url),
     'ImportJSONQualification',
@@ -116,8 +147,8 @@ test('public JSONPath environment passes the full CTS in an Apps Script-like bun
   const report = JSON.parse(runInContext(
     'JSON.stringify(ImportJSONQualification.smoke())', context, { timeout: 5000 },
   ));
-  assert.equal(report.passed, 704);
-  assert.deepEqual(report.failures, []);
+  assert.equal(report.passed, tests.length - expectedCtsFailures.length);
+  assert.deepEqual(report.failures, expectedCtsFailures);
   assert.equal(report.regexEngine, 're2js@2.8.6');
   assert.equal(report.textEncoderAvailable, false);
 });

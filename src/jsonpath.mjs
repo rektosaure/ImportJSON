@@ -45,6 +45,11 @@ function mapRE2Regexp(pattern) {
       continue;
     }
 
+    if (!charClass && (character === '^' || character === '$')) {
+      parts.push(`\\${character}`);
+      continue;
+    }
+
     parts.push(character === '.' && !charClass ? '[^\\n\\r]' : character);
   }
 
@@ -52,9 +57,6 @@ function mapRE2Regexp(pattern) {
 }
 
 function fullMatchRE2(pattern) {
-  const explicitCaret = pattern.startsWith('^');
-  const explicitDollar = pattern.endsWith('$');
-  if (explicitCaret || explicitDollar) return mapRE2Regexp(pattern);
   return `^(?:${mapRE2Regexp(pattern)})$`;
 }
 
