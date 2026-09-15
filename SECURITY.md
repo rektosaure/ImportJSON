@@ -2,20 +2,26 @@
 
 ## Supported versions
 
-Security fixes target `main` and the latest published release. Older releases may not receive backports.
+Security fixes are developed on `main` and shipped in a new release. The latest published release is supported; older releases may not receive backports.
+
+## Before reporting
+
+Documented security-relevant behavior, including shared Library cache scope and guidance for sensitive URLs, is described in the [User Guide](docs/user-guide.md#sensitive-urls).
+
+If observed behavior exceeds that documented model, can expose data beyond the intended scope, or otherwise appears exploitable, report it privately.
 
 ## Reporting a vulnerability
 
-Do not report suspected vulnerabilities in a public issue.
+Do not disclose suspected vulnerabilities in a public issue, discussion, pull request, or comment.
 
-Use GitHub's private vulnerability reporting flow when it is available for this repository. If that flow is unavailable, contact the repository maintainer through their GitHub profile before disclosing technical details publicly.
+Use GitHub's private vulnerability reporting flow when it is available for this repository. If it is unavailable, contact the repository maintainer through their GitHub profile before sharing technical details publicly.
 
 Include enough information to reproduce and assess the issue:
 
 - affected ImportJSON version or commit;
-- affected Google Apps Script or Google Sheets behavior;
-- reproduction steps;
-- expected and observed impact;
-- any proof of concept that can be shared safely.
+- installation mode and relevant Google Apps Script or Google Sheets context;
+- minimal reproduction steps;
+- expected and observed security impact;
+- a proof of concept, when one can be shared safely.
 
-Please avoid accessing data that is not yours, disrupting third-party services, or publishing exploit details before the issue can be assessed.
+Avoid accessing data that is not yours, disrupting third-party services, or publishing exploit details before the issue can be assessed.
