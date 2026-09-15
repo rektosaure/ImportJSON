@@ -1,34 +1,29 @@
 # Contributing
 
-ImportJSON is a small, specification-driven project. Keep changes focused and preserve the public behavior defined in [`docs/functional-specification.md`](docs/functional-specification.md).
+ImportJSON is a small, specification-driven project. Keep changes focused and preserve the public contract in [`docs/functional-specification.md`](docs/functional-specification.md).
 
-## Development workflow
+## Workflow
 
 1. Create a branch from `main`.
 2. Make the smallest coherent change required.
 3. Run the repository validation commands.
-4. Open a pull request into `main`.
-5. Use a Conventional Commit title for the pull request.
+4. Update tests and the document that owns any changed behavior or invariant.
+5. Open a pull request into `main` with a Conventional Commit title.
 6. Squash-merge only after CI is green.
 
-Do not push changes directly to `main`.
+Do not push directly to `main`.
 
-## Pull request titles
-
-Use Conventional Commit format so the project history remains easy to scan.
-
-Examples:
+Typical pull request titles:
 
 ```text
 feat: add a user-visible capability
 fix(core): preserve deterministic ordering
 docs: clarify installation
 test: cover a regression
-ci: simplify release publication
 feat!: replace a public API contract
 ```
 
-Release versions are chosen explicitly when the **Publish release** workflow is run; pull request titles do not calculate the next version.
+Release versioning and publication are documented in [`docs/releasing.md`](docs/releasing.md).
 
 ## Validation
 
@@ -39,31 +34,26 @@ npm ci
 npm test
 ```
 
-`npm test` builds the production Apps Script Library bundle and runs the full automated test suite, including the pinned RFC 9535 JSONPath qualification.
+`npm test` builds the production Apps Script Library bundle and runs the full automated suite, including JSONPath qualification.
 
-The committed tests and CI configuration are the source of truth for automated validation. Do not maintain a second prose checklist that duplicates test coverage.
-
-If public behavior changes, update the functional specification and tests in the same pull request. If architecture or release invariants change, update the corresponding focused documentation.
+Tests and CI are the source of truth for automated validation. Do not maintain a second prose checklist that duplicates them.
 
 ## Documentation ownership
 
-Each maintained document has one primary responsibility:
+Put information in the document that owns it:
 
-- [`README.md`](README.md) is the landing page: current installation, quick start, common operations, and pointers to deeper documentation.
-- [`docs/user-guide.md`](docs/user-guide.md) is the practical user reference. It explains how to use the current product but does not override the functional specification.
-- [`docs/functional-specification.md`](docs/functional-specification.md) is the normative contract for observable public behavior.
-- [`docs/architecture.md`](docs/architecture.md) documents technical boundaries, runtime integration, and the rationale for specialized qualification.
-- [`docs/releasing.md`](docs/releasing.md) documents publication, release identity, and release-specific checks.
-- [`docs/smoke-tests.md`](docs/smoke-tests.md) contains only manual checks that require the real Google Sheets / Apps Script runtime.
-- [`SECURITY.md`](SECURITY.md) documents vulnerability reporting and supported security-fix scope.
-- [`AGENTS.md`](AGENTS.md) contains repository instructions specific to coding agents and delegates general workflow rules back to this guide.
+- [`README.md`](README.md): installation, quick start, and navigation;
+- [`docs/user-guide.md`](docs/user-guide.md): practical product usage;
+- [`docs/functional-specification.md`](docs/functional-specification.md): normative observable behavior;
+- [`docs/architecture.md`](docs/architecture.md): technical boundaries and runtime integration;
+- [`docs/releasing.md`](docs/releasing.md) and [`docs/smoke-tests.md`](docs/smoke-tests.md): publication and real-runtime release checks;
+- [`SECURITY.md`](SECURITY.md): supported security-fix scope and vulnerability reporting;
+- [`AGENTS.md`](AGENTS.md): instructions specific to coding agents.
 
-Put new information in the document that owns it. Prefer links over copying the same explanation into several files. Repetition is acceptable only when the shorter copy is necessary for a reader to use that document independently, such as installation steps in the README and User Guide.
+If public behavior changes, update the functional specification and tests in the same pull request. Update architecture or release documentation only when the corresponding invariant changes.
 
-Keep maintained documentation in English and about the current product. Remove obsolete behavior rather than preserving historical migration prose in current-product documentation. Prefer provider-independent examples unless a real endpoint is required for runtime validation.
+Keep maintained documentation in English and about the current product. Prefer links over repeated explanations, and remove obsolete behavior instead of preserving migration prose unless compatibility is part of the public contract.
 
-## Design constraints
+## Design
 
-Prefer direct code over speculative abstraction. Do not add compatibility paths, dependencies, frameworks, or extension points without a concrete current requirement.
-
-The project is greenfield. Do not preserve obsolete behavior or migration machinery unless it is part of the documented public contract.
+Prefer direct code over speculative abstraction, compatibility machinery, dependencies, or extension points without a concrete current requirement.
