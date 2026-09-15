@@ -104,7 +104,7 @@ When `columns` is omitted, ImportJSON MUST project rows automatically according 
 
 - nested objects are recursively flattened;
 - an empty object contributes no automatic column;
-- the schema is the union of discovered properties;
+- the schema is the union of properties discovered from logical rows that exist after shaping;
 - headers are full JSON Pointers sorted by Unicode code-point order;
 - if every unshaped selected record is a non-object, the only header is `@value`;
 - if unshaped selected records mix at least one object with at least one non-object, the invocation produces `HETEROGENEOUS_RECORDS`.
@@ -172,12 +172,7 @@ Properties outside the target subtree MUST be repeated for each produced row. Th
 
 No nested array is expanded a second time. There is no implicit second shaping operation and no implicit Cartesian product.
 
-For automatic projection after pointer shaping, the schema is the deterministic union of:
-
-- properties discoverable outside the target subtree; and
-- properties observed in produced rows at or below the target.
-
-Outside headers MAY therefore remain known when all targeted arrays are empty. Child headers MUST NOT be invented without an observed value.
+For automatic projection after pointer shaping, the schema is the deterministic union of properties observed in the produced logical rows. If shaping produces zero rows, automatic projection has no schema. Use explicit `columns` when headers must remain present without data rows.
 
 ## 11. `columnar` shaping
 
@@ -209,7 +204,7 @@ Only direct array properties of the selected object participate in `columnar`. A
 - create a Cartesian product;
 - apply a second implicit shaping operation.
 
-For automatic projection, direct non-array properties remain discoverable even when all direct arrays are empty. Properties contributed only by array elements can be discovered only from produced rows.
+Automatic projection derives columns only from produced logical rows. If matching direct arrays are empty and therefore produce no rows, automatic projection has no schema.
 
 ## 12. `refreshKey`
 
@@ -234,8 +229,7 @@ The renderer maps both internal missing values and JSON `null` to empty cells.
 If there are no rows:
 
 - explicit projection returns headers only;
-- automatic projection returns known headers if shaping preserved discoverable outside schema;
-- if no automatic header is known, the result is one blank cell.
+- automatic projection has no schema and returns one blank cell.
 
 A spill conflict caused by occupied destination cells is a Google Sheets error and is not remapped by ImportJSON.
 

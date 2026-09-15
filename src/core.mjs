@@ -121,46 +121,6 @@ function flattenObject(value, pointer, output) {
   }
 }
 
-function discoverOutsideHeaders(value, pointer, shapePointer, headers) {
-  for (const key of Object.keys(value)) {
-    const child = value[key];
-    const childPointer = `${pointer}/${escapePointerToken(key)}`;
-
-    if (childPointer === shapePointer) continue;
-
-    if (shapePointer.startsWith(`${childPointer}/`)) {
-      if (isObject(child)) {
-        discoverOutsideHeaders(child, childPointer, shapePointer, headers);
-      }
-      continue;
-    }
-
-    if (isObject(child)) {
-      const values = new Map();
-      flattenObject(child, childPointer, values);
-      for (const header of values.keys()) headers.add(header);
-    } else {
-      headers.add(childPointer);
-    }
-  }
-}
-
-function discoverColumnarOutsideHeaders(record, headers) {
-  for (const key of Object.keys(record)) {
-    const child = record[key];
-    if (Array.isArray(child)) continue;
-
-    const childPointer = `/${escapePointerToken(key)}`;
-    if (isObject(child)) {
-      const values = new Map();
-      flattenObject(child, childPointer, values);
-      for (const header of values.keys()) headers.add(header);
-    } else {
-      headers.add(childPointer);
-    }
-  }
-}
-
 function selectRecords(document, query) {
   if (query === undefined) {
     return Array.isArray(document) ? document : [document];
@@ -181,14 +141,9 @@ function selectRecords(document, query) {
 
 function expandRecords(records, shape) {
   const tokens = parsePointer(shape, 'shape');
-  const outsideHeaders = new Set();
   const shapedRecords = [];
 
   for (const record of records) {
-    if (isObject(record)) {
-      discoverOutsideHeaders(record, '', shape, outsideHeaders);
-    }
-
     const target = resolvePointer(record, tokens);
 
     if (target === undefined || target === null) {
@@ -208,12 +163,10 @@ function expandRecords(records, shape) {
   return {
     records: shapedRecords,
     shaped: true,
-    outsideHeaders: [...outsideHeaders],
   };
 }
 
 function columnarizeRecords(records) {
-  const outsideHeaders = new Set();
   const shapedRecords = [];
 
   for (const record of records) {
@@ -233,8 +186,6 @@ function columnarizeRecords(records) {
       fail('COLUMN_LENGTH_MISMATCH', 'columnar arrays must have the same length within each selected record');
     }
 
-    discoverColumnarOutsideHeaders(record, outsideHeaders);
-
     for (let index = 0; index < rowCount; index++) {
       const shapedRecord = {};
       for (const [key, value] of entries) {
@@ -247,13 +198,12 @@ function columnarizeRecords(records) {
   return {
     records: shapedRecords,
     shaped: true,
-    outsideHeaders: [...outsideHeaders],
   };
 }
 
 function shapeRecords(records, shape) {
   if (shape === undefined) {
-    return { records, shaped: false, outsideHeaders: [] };
+    return { records, shaped: false };
   }
 
   if (shape === 'columnar') {
@@ -263,7 +213,7 @@ function shapeRecords(records, shape) {
   return expandRecords(records, shape);
 }
 
-function tabularizeRecords(records, columns, { shaped = false, outsideHeaders = [] } = {}) {
+function tabularizeRecords(records, columns, { shaped = false } = {}) {
   if (columns !== undefined) {
     if (!Array.isArray(columns) || columns.length === 0) {
       fail('INVALID_ARGUMENT', 'columns must be a non-empty list of JSON Pointers');
@@ -309,10 +259,9 @@ function tabularizeRecords(records, columns, { shaped = false, outsideHeaders = 
     return values;
   });
 
-  const headers = [...new Set([
-    ...outsideHeaders,
-    ...flattened.flatMap((values) => [...values.keys()]),
-  ])].sort(compareUnicodeCodePoints);
+  const headers = [...new Set(
+    flattened.flatMap((values) => [...values.keys()]),
+  )].sort(compareUnicodeCodePoints);
 
   return {
     headers,

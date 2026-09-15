@@ -143,7 +143,7 @@ Nested objects are flattened recursively into JSON Pointer headers. For example:
 
 becomes columns `/details/active`, `/details/label`, and `/id`.
 
-The automatic schema is the union of discovered properties across object rows. Empty objects contribute no automatic columns. Automatically discovered headers are sorted by their full JSON Pointer strings using Unicode code-point order.
+The automatic schema is the union of discovered properties across logical rows that exist after shaping. Empty objects contribute no automatic columns. Automatically discovered headers are sorted by their full JSON Pointer strings using Unicode code-point order.
 
 If all unshaped selected records are non-objects such as strings, numbers, booleans, `null`, or arrays, ImportJSON uses the synthetic header `@value`.
 
@@ -226,6 +226,8 @@ Properties outside the target subtree are repeated on every produced row. The cu
 
 Nested arrays are not recursively expanded. ImportJSON does not create a Cartesian product. Explicit `columns` are resolved after shaping, so pointers such as `/items/code` refer to the shaped row.
 
+If pointer shaping produces zero rows, automatic projection has no schema and the Sheets result is one blank cell. Supply explicit `columns` when headers should remain present even when there are no data rows.
+
 ## `columnar`: object-of-arrays to records
 
 `columnar` is a generic transformation for JSON objects whose direct array properties represent parallel columns.
@@ -274,6 +276,8 @@ When `query` selects multiple objects, each is columnarized independently and th
 
 If direct arrays have different lengths, ImportJSON produces `COLUMN_LENGTH_MISMATCH`. A non-object selected record or an object with no direct array produces `INVALID_COLUMNAR_TARGET`.
 
+If `columnar` produces zero rows, automatic projection has no schema and the Sheets result is one blank cell. Supply explicit `columns` when headers should remain present without data rows.
+
 ## `refreshKey`
 
 `refreshKey` affects formula dependency tracking but is ignored by the data engine.
@@ -292,9 +296,9 @@ ImportJSON has no private HTTP cache and does not promise that remote changes ar
 
 The engine distinguishes JSON `null` from a missing property, but the Sheets renderer displays both as an empty cell.
 
-If automatic projection discovers no columns, the rendered result is one blank cell. This includes an empty selection without explicit columns and records made only of empty objects.
+If automatic projection discovers no columns, the rendered result is one blank cell. This includes an empty selection, shaping that produces zero logical rows, and records made only of empty objects.
 
-If shaping produces zero rows but known outside properties exist, automatic headers can still be returned with no data rows. With explicit columns, the requested headers remain even when there are no rows.
+With explicit `columns`, the requested headers remain even when selection or shaping produces no rows.
 
 ## Ordering
 
