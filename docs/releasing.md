@@ -17,6 +17,16 @@ The target Apps Script project must exist, be configured and shared as the produ
 
 Treat `CLASPRC_JSON` as a password. Never commit `.clasprc.json` or `.clasp.json`; both are ignored by Git.
 
+## Release validation
+
+A release is based on the exact candidate artifact produced by successful CI for the target `main` commit. CI is the source of truth for automated build, core, adapter, distribution, and JSONPath qualification checks.
+
+Before publication, run the manual [Google Sheets smoke tests](smoke-tests.md) against the exact candidate Library bundle and wrapper. Record the tested revision or bundle checksum with the result. After publication, repeat the smoke matrix against the immutable Apps Script Library version associated with the GitHub release.
+
+JSONPath dependency or integration changes must also satisfy the qualification requirements in [JSONPath Qualification](jsonpath-qualification.md).
+
+Do not publish a candidate with failing CI or incomplete required smoke validation. The public behavior being validated is defined by the [Functional Specification](functional-specification.md).
+
 ## Publish flow
 
 The workflow publishes exactly the current `main` commit. It:

@@ -3,7 +3,7 @@
 **Target:** Google Sheets / Google Apps Script  
 **Public API:** v1
 
-This document defines the observable behavior of ImportJSON. If it conflicts with [`architecture.md`](architecture.md) or [`validation.md`](validation.md), this specification is authoritative.
+This document defines the observable behavior of ImportJSON. If it conflicts with [`architecture.md`](architecture.md), this specification is authoritative.
 
 The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as described in BCP 14 (RFC 2119 / RFC 8174).
 
