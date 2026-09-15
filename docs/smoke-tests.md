@@ -25,7 +25,7 @@ https://raw.githubusercontent.com/rektosaure/ImportJSON/<ref>/test/fixtures/smok
 
 ## Smoke matrix
 
-### 1. Library, wrapper, fetch, and automatic spill
+### 1. Library, wrapper, cache boundary, fetch, and automatic spill
 
 Use `root-object.json`:
 
@@ -40,7 +40,7 @@ Expected table:
 TRUE              1     Alpha
 ```
 
-This verifies that the published Library and wrapper load in Apps Script, `UrlFetchApp` can retrieve JSON, a non-array root is handled correctly, and the returned matrix spills into Sheets.
+This verifies that the published Library and wrapper load in Apps Script, the CacheService/Utilities boundary does not prevent execution, `UrlFetchApp` can retrieve JSON on cache miss, a non-array root is handled correctly, and the returned matrix spills into Sheets. Detailed cache hit/miss semantics remain covered by automated tests because a Sheet result alone cannot prove whether a network request occurred.
 
 ### 2. JSONPath and one-dimensional `columns` range
 
@@ -114,15 +114,17 @@ For a successful response whose body is not JSON, use the repository README at t
 
 The cell must fail with an ImportJSON error containing `INVALID_JSON`.
 
-### 6. `refreshKey` dependency path
+### 6. `refresh` control through the public boundary
 
-Repeat case 1 with a unique fifth argument while preserving the blank positional placeholders:
+Put a checkbox in `B1` and use `root-object.json`:
 
 ```gs
-=IMPORTJSON("<root-object-url>",,,,"smoke-<ref>")
+=IMPORTJSON("<root-object-url>",,,,B1)
 ```
 
-The result must be identical to case 1. This verifies the public fifth-argument path without duplicating the complete smoke matrix.
+With `B1` equal to `FALSE`, the result must match case 1. Change `B1` to `TRUE`; Sheets must reevaluate the formula and the result must still match case 1. Change `B1` back to `FALSE`; the result must remain unchanged.
+
+This verifies the public fifth-argument path, boolean values produced by a real Sheets checkbox, and forced-refresh execution through the published Library. The automated adapter tests prove that `TRUE` bypasses cache lookup and replaces an eligible cached body.
 
 ### 7. Manual bundle installation
 
@@ -141,7 +143,7 @@ Expected table:
 TRUE              1     Alpha
 ```
 
-This verifies that the published complete bundle exposes the `IMPORTJSON` custom function directly in a bound Apps Script project. The complete behavior matrix is not repeated because both installation modes execute the same bundled implementation.
+This verifies that the published complete bundle exposes the `IMPORTJSON` custom function directly in a bound Apps Script project and that its local Script Cache integration does not prevent execution. The complete behavior matrix is not repeated because both installation modes execute the same bundled implementation.
 
 ## Acceptance
 
