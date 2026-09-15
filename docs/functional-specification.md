@@ -76,7 +76,7 @@ The successful response body MUST parse as JSON. Otherwise the invocation produc
 
 A fetched response is eligible to populate the cache only after the invocation successfully completes JSON parsing, selection, shaping, and projection. Failed HTTP acquisition, invalid JSON, invalid JSONPath, shaping errors, and other failed transformations MUST NOT populate the cache with the fetched body.
 
-The default requested cache lifetime is 600 seconds. This is an upper bound requested from the platform rather than a persistence guarantee: Apps Script MAY evict an entry earlier.
+The default requested cache lifetime is 3600 seconds. This is an upper bound requested from the platform rather than a persistence guarantee: Apps Script MAY evict an entry earlier.
 
 ImportJSON MUST NOT store a fetched response when any of the following is present:
 
@@ -85,7 +85,7 @@ ImportJSON MUST NOT store a fetched response when any of the following is presen
 - `Cache-Control: private`;
 - `Vary: *`.
 
-For shared-cache freshness, `s-maxage` takes precedence over `max-age` when present. An effective `s-maxage` or `max-age` of `0` disables storage. A positive effective value shorter than 600 seconds shortens the requested cache lifetime. A larger value does not extend the lifetime beyond 600 seconds.
+For shared-cache freshness, `s-maxage` takes precedence over `max-age` when present. An effective `s-maxage` or `max-age` of `0` disables storage. A positive effective value shorter than 3600 seconds shortens the requested cache lifetime. A larger value does not extend the lifetime beyond 3600 seconds.
 
 When a fresh successful HTTP response forbids shared storage under these rules, ImportJSON SHOULD remove any prior cache entry for the same URL on a best-effort basis.
 
@@ -292,7 +292,7 @@ Errors MUST NOT expose native stack traces or remote response bodies through nor
 
 ImportJSON runs within Google Apps Script and Google Sheets. Platform execution, service, cache, cell, and spill limits therefore apply.
 
-The current implementation defines an explicit 20-second HTTP timeout and requests at most 600 seconds of HTTP cache lifetime, but does not define additional ImportJSON-specific public error codes for platform size, depth, row-count, column-count, cache-value size, or execution limits.
+The current implementation defines an explicit 20-second HTTP timeout and requests at most 3600 seconds of HTTP cache lifetime, but does not define additional ImportJSON-specific public error codes for platform size, depth, row-count, column-count, cache-value size, or execution limits.
 
 A response that cannot be stored by Apps Script CacheService MUST still be processed normally. No platform-limit failure is specified as a successful truncated table.
 

@@ -80,7 +80,7 @@ ImportJSON currently provides no authentication or credential-management API. Do
 
 ## HTTP cache and `refresh`
 
-ImportJSON keeps eligible successful response bodies in a best-effort Apps Script cache for at most 10 minutes. Google may evict entries earlier, and a response that cannot be stored is still processed normally.
+ImportJSON keeps eligible successful response bodies in a best-effort Apps Script cache for at most 1 hour. Google may evict entries earlier, and a response that cannot be stored is still processed normally.
 
 The cache identity is the **exact URL string** supplied to ImportJSON after single-cell extraction and validation. It is not canonicalized. These URLs therefore use different entries:
 

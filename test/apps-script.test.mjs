@@ -106,7 +106,7 @@ test('IMPORTJSON adapter performs one bounded GET and returns a Sheets matrix', 
       },
     }]);
     assert.equal(cachePuts.length, 1);
-    assert.equal(cachePuts[0].expirationInSeconds, 600);
+    assert.equal(cachePuts[0].expirationInSeconds, 3600);
   });
 });
 
@@ -446,7 +446,7 @@ test('fresh response that forbids shared storage clears an older cached body', (
   });
 });
 
-test('origin freshness can shorten but not extend the 600-second cache TTL', () => {
+test('origin freshness can shorten but not extend the 3600-second cache TTL', () => {
   withRuntime({
     body: '[{"a":1}]',
     headers: { 'Cache-Control': 'public, max-age=30' },
@@ -465,10 +465,10 @@ test('origin freshness can shorten but not extend the 600-second cache TTL', () 
 
   withRuntime({
     body: '[{"a":1}]',
-    headers: { 'Cache-Control': 'max-age=3600' },
+    headers: { 'Cache-Control': 'max-age=7200' },
   }, ({ cachePuts }) => {
     runImportJSON('https://example.test/data.json');
-    assert.equal(cachePuts[0].expirationInSeconds, 600);
+    assert.equal(cachePuts[0].expirationInSeconds, 3600);
   });
 });
 

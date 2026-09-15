@@ -1,7 +1,7 @@
 import { jsonTextToTable } from './core.mjs';
 
 const HTTP_TIMEOUT_SECONDS = 20;
-const HTTP_CACHE_TTL_SECONDS = 600;
+const HTTP_CACHE_TTL_SECONDS = 3600;
 const HTTP_CACHE_KEY_PREFIX = 'importjson:http:v1:';
 
 function fail(code, message) {
