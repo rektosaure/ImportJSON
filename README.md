@@ -1,14 +1,8 @@
 # ImportJSON
 
-ImportJSON is a general-purpose Google Sheets custom function that fetches one JSON document from an HTTP or HTTPS URL and turns selected JSON values into a table.
+ImportJSON is a Google Sheets custom function that fetches one JSON document from an HTTP or HTTPS URL and turns selected JSON values into a table.
 
-It uses standard JSON tools for each step:
-
-- JSONPath (RFC 9535) selects nodes from the document;
-- JSON Pointer (RFC 6901) identifies projected columns;
-- `shape` performs one explicit structural transformation when selected data needs to become rows;
-- nested objects are flattened into JSON Pointer columns;
-- structured values that are not expanded are rendered as deterministic compact JSON.
+It uses standard JSON tools: JSONPath (RFC 9535) selects nodes, JSON Pointer (RFC 6901) identifies columns, and an optional `shape` argument performs one explicit structural transformation when nested data needs to become rows.
 
 ## Install
 
@@ -23,35 +17,21 @@ For **v1.0.0**, use these exact Library settings:
 | Library identifier | `ImportJSONLib` |
 
 1. Open the Google Sheet, then choose **Extensions → Apps Script**.
-2. In the Apps Script editor, next to **Libraries**, choose **Add a library**.
+2. Next to **Libraries**, choose **Add a library**.
 3. Paste the Script ID above and choose **Look up**.
 4. Select **Version 2**, set the identifier to `ImportJSONLib`, and add the Library.
-5. Copy [`dist/ImportJSON.gs`](dist/ImportJSON.gs) into the bound Apps Script project.
+5. Download `ImportJSON.gs` from the [v1.0.0 release](https://github.com/rektosaure/ImportJSON/releases/tag/v1.0.0) and copy it into the bound Apps Script project.
 6. Save the project and return to the sheet.
 
-The wrapper exposes the `IMPORTJSON` custom function in the spreadsheet. Use the immutable Apps Script version associated with the GitHub release rather than a development/HEAD version.
+Use the wrapper from the same GitHub release as the immutable Apps Script Library version. For later releases, the corresponding Apps Script version is recorded in the release's `release-manifest.json` asset.
 
-For later releases, the corresponding Apps Script Library version is recorded in the release's `release-manifest.json` asset.
-
-## Syntax
+## Quick start
 
 ```text
 IMPORTJSON(url, [query], [columns], [shape], [refreshKey])
 ```
 
-The examples below use commas as formula argument separators. Some Google Sheets locales use semicolons instead.
-
-| Argument | Purpose |
-| --- | --- |
-| `url` | Absolute HTTP or HTTPS URL that returns one JSON document. |
-| `query` | Optional JSONPath expression selecting records. |
-| `columns` | Optional JSON Pointer, or a one-dimensional cell range containing JSON Pointers. |
-| `shape` | Optional JSON Pointer that expands one nested array, or `"columnar"` for an object-of-arrays. |
-| `refreshKey` | Optional recalculation dependency; it does not change the imported data. |
-
-## Quick start
-
-Suppose `A1` contains the URL of a document with this JSON:
+If `A1` contains the URL of a JSON array such as:
 
 ```json
 [
@@ -60,13 +40,13 @@ Suppose `A1` contains the URL of a document with this JSON:
 ]
 ```
 
-Use:
+then:
 
 ```gs
 =IMPORTJSON(A1)
 ```
 
-The result is:
+returns:
 
 ```text
 /details/active   /id   /name
@@ -74,119 +54,40 @@ TRUE              1     Alpha
 FALSE             2     Beta
 ```
 
-When `query` is omitted, a root array contributes one selected record per element. A non-array root is treated as one selected record.
+Some Google Sheets locales use semicolons instead of commas as formula argument separators.
 
-## Select with JSONPath
+## Common operations
 
-Use an RFC 9535 JSONPath expression to select nodes before tabularization:
+Select records with JSONPath:
 
 ```gs
 =IMPORTJSON(A1, "$.users[*]")
 ```
 
-JSONPath controls **which nodes are selected**. ImportJSON preserves the selection order and multiplicity produced by the JSONPath engine.
-
-## Choose columns with JSON Pointer
-
-A single JSON Pointer can be supplied directly:
+Project one JSON Pointer directly, or place several pointers in a one-dimensional cell range:
 
 ```gs
 =IMPORTJSON(A1, "$.users[*]", "/name")
-```
-
-For multiple columns, place JSON Pointers in a horizontal or vertical range, for example `/id`, `/name`, and `/details/active` in `D1:F1`:
-
-```gs
 =IMPORTJSON(A1, "$.users[*]", D1:F1)
 ```
 
-Explicit projection preserves the order of the pointers in the range. Without `columns`, ImportJSON discovers columns automatically by flattening nested objects.
-
-## Expand one nested array
-
-If each selected record contains an array that should become rows, pass its JSON Pointer as `shape`:
-
-```json
-[
-  {"id": 1, "items": [{"code": "A"}, {"code": "B"}]}
-]
-```
+Expand one nested array into rows:
 
 ```gs
 =IMPORTJSON(A1, , , "/items")
 ```
 
-Result:
-
-```text
-/id   /items/code
-1     A
-1     B
-```
-
-Only that array is expanded. ImportJSON does not recursively expand nested arrays or create an implicit Cartesian product.
-
-## Convert an object-of-arrays with `columnar`
-
-Some JSON represents table columns as parallel arrays:
-
-```json
-{
-  "group": "A",
-  "year": [2024, 2025],
-  "score": [18, 21]
-}
-```
-
-Use:
+Convert an object of parallel arrays into rows:
 
 ```gs
 =IMPORTJSON(A1, , , "columnar")
 ```
 
-Result:
-
-```text
-/group   /score   /year
-A        18       2024
-A        21       2025
-```
-
-`columnar` is explicit: ImportJSON never guesses that an object is tabular. All direct array properties define the row axis and must have the same length. Direct non-array properties are repeated for each row.
-
-## Mental model
-
-```text
-JSON document
-    ↓
-query
-    ↓
-selected records
-    ↓
-shape
-    ↓
-logical rows
-    ↓
-columns / automatic projection
-    ↓
-flattening and rendering
-    ↓
-Google Sheets
-```
-
-Each stage is independent: JSONPath selects, `shape` changes row structure once, JSON Pointer projects columns, and rendering converts the resulting logical rows into the spilled Sheets matrix.
-
 ## Documentation
 
-See the [User Guide](docs/user-guide.md) for the complete practical reference, including omitted-query behavior, projection rules, structured values, shaping semantics, `null` and missing properties, ordering, errors, limits, recipes, and end-to-end examples.
+See the [User Guide](docs/user-guide.md) for the complete practical reference: arguments, selection, projection, shaping, rendering, errors, limits, recipes, and end-to-end examples.
 
-Maintainer references:
-
-- [Functional Specification](docs/functional-specification.md) — normative public behavior
-- [Architecture](docs/architecture.md) — technical boundaries and invariants
-- [Validation](docs/validation.md) — release acceptance criteria
-- [Releasing](docs/releasing.md) — automated GitHub and Apps Script publication
-- [JSONPath Qualification](docs/jsonpath-qualification.md) — RFC 9535 engine qualification
+To contribute, start with [CONTRIBUTING.md](CONTRIBUTING.md). The contributor guide points to the normative specification and maintainer documentation when needed.
 
 ## License
 
