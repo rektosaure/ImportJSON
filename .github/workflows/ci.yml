@@ -26,6 +26,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Stage release candidate
+        if: github.event_name == 'push'
         run: |
           set -euo pipefail
           rm -rf release-candidate
@@ -33,6 +34,7 @@ jobs:
           cp build/* release-candidate/
           cp dist/ImportJSON.gs release-candidate/ImportJSON.gs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
         with:
           name: importjson-release-candidate
           path: release-candidate/
