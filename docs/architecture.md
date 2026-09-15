@@ -75,7 +75,7 @@ build/re2js-LICENSE
 
 `src/apps-script-globals.js` is appended to the bundle so the standalone Library exposes `IMPORTJSON(...)` in Apps Script. `dist/ImportJSON.gs` is the small user-facing wrapper copied into the consuming spreadsheet project; it delegates to the published Library through the identifier `ImportJSONLib`.
 
-The Library bundle and wrapper intentionally remain separate artifacts. CI stages both, and the release workflow promotes the exact candidate produced by the successful `main` CI run rather than rebuilding release bytes.
+The Library bundle and wrapper intentionally remain separate artifacts. CI on `main` stages both, and the release workflow promotes that exact candidate rather than rebuilding release bytes.
 
 ## 4. Change discipline
 
