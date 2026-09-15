@@ -54,31 +54,31 @@ The adapter MUST NOT duplicate core selection, shaping, or projection rules.
 
 ## 2. JSONPath engine
 
-ImportJSON uses `json-p3@2.3.0` for RFC 9535 evaluation and `re2js@2.8.6` for `match()` and `search()` behavior.
+ImportJSON uses `json-p3@2.3.0` for RFC 9535 evaluation and `re2js@2.8.6` for `match()` and `search()`.
 
-`src/jsonpath.mjs` creates the JSONPath environment used by the product. It uses documented `json-p3` extension points to:
+`src/jsonpath.mjs` creates the product JSONPath environment using public `json-p3` extension points:
 
-- provide deterministic object-member traversal through the environment `entries` hook;
-- register RE2JS-backed `match()` and `search()` functions through `functionRegister`.
+- `entries` provides deterministic object-member traversal;
+- `functionRegister` provides RE2JS-backed `match()` and `search()`.
 
-The qualified engine MUST continue to:
+The production bundle targets Google Apps Script V8. It injects the ASCII-only `TextEncoder` implementation in `src/apps-script-text-encoder.mjs` required by `json-p3` hexadecimal escape parsing. The shim rejects non-ASCII input.
+
+The JSONPath engine MUST:
 
 - pass the pinned RFC 9535 compliance suite;
 - run in Google Apps Script V8 after bundling;
-- avoid Node.js runtime dependencies that are unavailable in Apps Script;
-- avoid `eval`, `new Function`, and dynamic code generation for query evaluation;
-- preserve the order and multiplicity required by the functional specification;
-- preserve deterministic object-member traversal where RFC 9535 permits multiple member orders.
+- avoid unavailable Node.js runtime dependencies;
+- avoid `eval`, `new Function`, and dynamic code generation;
+- preserve selector-defined order and multiplicity;
+- provide deterministic object-member traversal where RFC 9535 permits multiple orders.
 
-The production build applies one narrow source adaptation to pinned `json-p3@2.3.0`: it removes the dependency on `TextEncoder`, which is unavailable in Apps Script V8, from hexadecimal escape parsing. Regex behavior and traversal are not patched internally.
-
-ImportJSON does not add custom JSONPath traversal budgets, deadlines, or visit hooks. Platform execution limits may still terminate an invocation, but no ImportJSON-specific resource-limit contract exists unless the product explicitly implements and tests one.
+ImportJSON defines no product-specific JSONPath traversal budget, deadline, or visit-hook contract. Platform execution limits remain external runtime limits.
 
 Any update or replacement of the JSONPath engine MUST repeat the qualification described in [`jsonpath-qualification.md`](jsonpath-qualification.md).
 
 ## 3. Determinism
 
-Determinism is a product invariant, not an implementation convenience.
+Determinism is a product invariant.
 
 The implementation MUST preserve:
 
@@ -134,19 +134,15 @@ The custom function returns a matrix; it MUST NOT write directly to arbitrary sp
 
 ## 7. Build and distribution
 
-The production build has one responsibility: create the autonomous Apps Script Library bundle.
-
-`npm run build` produces:
+`npm run build` produces the autonomous Apps Script Library bundle and its runtime metadata:
 
 - `build/importjson-library.gs`;
 - `build/appsscript.json`;
 - runtime dependency license files.
 
-The `build/` directory is generated and is not the user-facing installation artifact.
+`build/` is generated. `dist/ImportJSON.gs` is the user-facing wrapper copied into the consuming Apps Script project. It exposes `IMPORTJSON(...)` and delegates to the Apps Script Library through the identifier `ImportJSONLib`.
 
-`dist/ImportJSON.gs` is the small, versioned wrapper copied into the consuming Apps Script project. It exposes `IMPORTJSON(...)` with JSDoc and delegates to the Apps Script Library through the identifier `ImportJSONLib`.
-
-The consuming Apps Script project therefore contains the wrapper and a pinned published ImportJSON Library version. The large generated bundle MUST NOT be copied into `dist/`.
+The consuming Apps Script project contains the wrapper and a pinned published ImportJSON Library version. The generated Library bundle MUST NOT be copied into `dist/`.
 
 ## 8. Change discipline
 

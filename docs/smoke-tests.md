@@ -22,9 +22,7 @@ https://raw.githubusercontent.com/rektosaure/ImportJSON/<ref>/test/fixtures/smok
 https://raw.githubusercontent.com/rektosaure/ImportJSON/<ref>/test/fixtures/smoke/columnar.json
 ```
 
-## Existing integration baseline
-
-The release smoke must continue to exercise these established paths in real Google Sheets:
+## Core runtime cases
 
 | Case | Formula / setup | Pass condition |
 | --- | --- | --- |
@@ -34,11 +32,9 @@ The release smoke must continue to exercise these established paths in real Goog
 | Columns with explicit query | Use the same range with `=IMPORTJSON("https://jsonplaceholder.typicode.com/users","$[*]",<range>)`. | The result matches the omitted-query projection. |
 | JSONPath plus columns | Use the same range with `=IMPORTJSON("https://jsonplaceholder.typicode.com/users","$[?@.id <= 3]",<range>)`. | Exactly three rows are returned with ids 1, 2, and 3. |
 | Pointer shaping | Put `/id`, `/title`, `/reviews/rating`, `/reviews/reviewerName` in a 1-D range and call `=IMPORTJSON("https://dummyjson.com/products?limit=2","$.products[*]",<range>,"/reviews")`. | Six review rows are produced from the two selected products. |
-| Existing public errors | Exercise invalid JSONPath, unsupported `ftp:` URL, and a scalar pointer-shape target. | The errors contain `INVALID_JSONPATH`, `INVALID_URL`, and `INVALID_EXPANSION_TARGET`, respectively. |
+| Public errors | Exercise invalid JSONPath, unsupported `ftp:` URL, and a scalar pointer-shape target. | The errors contain `INVALID_JSONPATH`, `INVALID_URL`, and `INVALID_EXPANSION_TARGET`, respectively. |
 
-## Additional public-surface cases
-
-These eight cases extend the live smoke suite so both shaping modes, root semantics, literal projection, rendering semantics, and HTTP/JSON acquisition failures are exercised in the real Apps Script + Sheets runtime.
+## Focused public-surface cases
 
 ### 1. `columnar` shaping
 
@@ -166,13 +162,13 @@ The cell must fail with an ImportJSON error containing `INVALID_JSON`.
 
 ## Refresh-key pass
 
-After the formulas are working once, rerun every smoke invocation with a unique fifth argument, for example `"smoke-<ref>"`, while preserving blank positional placeholders. The result or public error code must remain unchanged. Then restore the formulas without the temporary refresh key.
+Rerun every smoke invocation with a unique fifth argument, for example `"smoke-<ref>"`, while preserving blank positional placeholders. The result or public error code must remain unchanged. Then restore the formulas without the temporary refresh key.
 
 ## Acceptance
 
 A candidate passes the live smoke suite only when:
 
-- every baseline and additional case passes in the same Sheet using the exact candidate wrapper and Library bundle;
+- every core and focused case passes in the same Sheet using the exact candidate wrapper and Library bundle;
 - the exact candidate revision or bundle checksum is recorded with the result;
 - no formula unexpectedly returns a native stack trace or remote response body;
 - the post-publication run against the immutable Apps Script Library version produces the same results.
