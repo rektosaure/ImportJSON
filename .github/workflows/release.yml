@@ -11,9 +11,6 @@ permissions:
   actions: read
   contents: write
 
-env:
-  CLASP_VERSION: '3.4.1'
-
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -34,6 +31,9 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+
+      - name: Install release tooling
+        run: npm ci
 
       - name: Lock release commit
         id: source
@@ -123,7 +123,7 @@ jobs:
           RELEASE_SHA: ${{ steps.source.outputs.release_sha }}
         run: |
           set -euo pipefail
-          CLASP="npx --yes @google/clasp@${CLASP_VERSION}"
+          CLASP="./node_modules/.bin/clasp"
           DESCRIPTION="ImportJSON ${TAG_NAME} (${RELEASE_SHA:0:12})"
 
           assert_main_unchanged() {
@@ -166,6 +166,7 @@ jobs:
           BUNDLE_SHA256="$(sha256sum release-assets/importjson-library.gs | awk '{print $1}')"
           MANIFEST_SHA256="$(sha256sum release-assets/appsscript.json | awk '{print $1}')"
           WRAPPER_SHA256="$(sha256sum release-assets/ImportJSON.gs | awk '{print $1}')"
+          CLASP_VERSION="$(node -p 'require("./node_modules/@google/clasp/package.json").version')"
 
           node -e '
             const fs = require("fs");
