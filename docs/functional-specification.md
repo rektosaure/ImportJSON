@@ -83,11 +83,9 @@ ImportJSON MUST NOT store a fetched response when any of the following is presen
 - `Cache-Control: no-store`;
 - `Cache-Control: no-cache`;
 - `Cache-Control: private`;
-- `Cache-Control: max-age=0`;
-- `Cache-Control: s-maxage=0`;
 - `Vary: *`.
 
-When `s-maxage` is present, it takes precedence over `max-age` for the shared cache. A positive `s-maxage` or `max-age` shorter than 600 seconds shortens the requested cache lifetime. A larger value does not extend the lifetime beyond 600 seconds.
+For shared-cache freshness, `s-maxage` takes precedence over `max-age` when present. An effective `s-maxage` or `max-age` of `0` disables storage. A positive effective value shorter than 600 seconds shortens the requested cache lifetime. A larger value does not extend the lifetime beyond 600 seconds.
 
 When a fresh successful HTTP response forbids shared storage under these rules, ImportJSON SHOULD remove any prior cache entry for the same URL on a best-effort basis.
 
