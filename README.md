@@ -52,7 +52,7 @@ returns:
 ```text
 /details/active   /id   /name
 TRUE              1     Alpha
-FALSE              2     Beta
+FALSE             2     Beta
 ```
 
 Some Google Sheets locales use semicolons instead of commas as formula argument separators.
