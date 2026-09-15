@@ -39,10 +39,10 @@ The workflow:
 2. installs dependencies with `npm ci` from `package-lock.json`;
 3. validates the requested version and refuses a same-named tag that points to another commit;
 4. runs `npm test`, which builds the production Apps Script Library and executes the complete automated test suite;
-5. stages the generated Library files and `dist/ImportJSON.gs` wrapper as release assets;
+5. stages the generated Library bundle, internal Apps Script manifest, consolidated third-party licenses, and `dist/ImportJSON.gs` wrapper;
 6. pushes the generated Apps Script project and creates one immutable Apps Script version, unless the same release version for the same Git commit was already created by an earlier attempt;
-7. generates `release-manifest.json` with the release identity and SHA-256 hashes of the deployed files and wrapper;
-8. creates the `vX.Y.Z` GitHub Release, or repairs that same release on a retry, and uploads the generated assets.
+7. generates `release-manifest.json` with the release identity and SHA-256 hashes of the published release files;
+8. creates the `vX.Y.Z` GitHub Release, or repairs that same release on a retry, and uploads only the public release assets.
 
 The selected Git commit is immutable, so publication does not depend on `main` remaining unchanged while the workflow runs.
 
@@ -54,20 +54,20 @@ A release contains:
 
 ```text
 importjson-library.gs
-appsscript.json
 ImportJSON.gs
-json-p3-LICENSE
-re2js-LICENSE
+THIRD_PARTY_LICENSES.txt
 release-manifest.json
 ```
 
-`ImportJSON.gs` is the small user-facing Google Sheets wrapper. The standalone Apps Script Library publication uses only `importjson-library.gs` and `appsscript.json`.
+`importjson-library.gs` is the complete bundle used both for manual installation and for the published Apps Script Library. `ImportJSON.gs` is the small wrapper used only with the Apps Script Library installation. `THIRD_PARTY_LICENSES.txt` contains the license notices for bundled dependencies.
+
+The build also generates `appsscript.json`. It is used only to publish the standalone Apps Script Library with `clasp` and is not uploaded as a GitHub Release asset.
 
 `release-manifest.json` records:
 
 - the SemVer release and exact Git commit;
 - the Apps Script project and immutable Apps Script version;
-- SHA-256 hashes for the Library bundle, Apps Script manifest, and user-facing wrapper;
+- SHA-256 hashes for the Library bundle, user-facing wrapper, and consolidated third-party licenses;
 - the installed `@google/clasp` version used to publish.
 
 Do not encode the Apps Script integer into product SemVer and do not maintain a second handwritten version table.

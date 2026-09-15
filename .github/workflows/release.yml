@@ -74,7 +74,9 @@ jobs:
           set -euo pipefail
           rm -rf release-assets
           mkdir release-assets
-          cp build/* release-assets/
+          cp build/importjson-library.gs release-assets/importjson-library.gs
+          cp build/appsscript.json release-assets/appsscript.json
+          cp build/THIRD_PARTY_LICENSES.txt release-assets/THIRD_PARTY_LICENSES.txt
           cp dist/ImportJSON.gs release-assets/ImportJSON.gs
 
       - name: Prepare Apps Script project
@@ -124,13 +126,13 @@ jobs:
         run: |
           set -euo pipefail
           BUNDLE_SHA256="$(sha256sum release-assets/importjson-library.gs | awk '{print $1}')"
-          MANIFEST_SHA256="$(sha256sum release-assets/appsscript.json | awk '{print $1}')"
           WRAPPER_SHA256="$(sha256sum release-assets/ImportJSON.gs | awk '{print $1}')"
+          LICENSES_SHA256="$(sha256sum release-assets/THIRD_PARTY_LICENSES.txt | awk '{print $1}')"
           CLASP_VERSION="$(node -p 'require("./node_modules/@google/clasp/package.json").version')"
 
           node -e '
             const fs = require("fs");
-            const [tag, version, gitCommit, scriptId, appsScriptVersion, bundleSha256, manifestSha256, wrapperSha256, claspVersion] = process.argv.slice(1);
+            const [tag, version, gitCommit, scriptId, appsScriptVersion, bundleSha256, wrapperSha256, licensesSha256, claspVersion] = process.argv.slice(1);
             const manifest = {
               release: tag,
               version,
@@ -141,8 +143,8 @@ jobs:
               },
               artifacts: {
                 "importjson-library.gs": { sha256: bundleSha256 },
-                "appsscript.json": { sha256: manifestSha256 },
                 "ImportJSON.gs": { sha256: wrapperSha256 },
+                "THIRD_PARTY_LICENSES.txt": { sha256: licensesSha256 },
               },
               publisher: {
                 tool: "@google/clasp",
@@ -150,7 +152,7 @@ jobs:
               },
             };
             fs.writeFileSync("release-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
-          ' "$TAG_NAME" "$RELEASE_VERSION" "$RELEASE_SHA" "$APPS_SCRIPT_ID" "$APPS_SCRIPT_VERSION" "$BUNDLE_SHA256" "$MANIFEST_SHA256" "$WRAPPER_SHA256" "$CLASP_VERSION"
+          ' "$TAG_NAME" "$RELEASE_VERSION" "$RELEASE_SHA" "$APPS_SCRIPT_ID" "$APPS_SCRIPT_VERSION" "$BUNDLE_SHA256" "$WRAPPER_SHA256" "$LICENSES_SHA256" "$CLASP_VERSION"
 
       - name: Create or repair GitHub Release
         env:
@@ -159,7 +161,12 @@ jobs:
           TAG_NAME: ${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
-          ASSETS=(release-assets/* release-manifest.json)
+          ASSETS=(
+            release-assets/importjson-library.gs
+            release-assets/ImportJSON.gs
+            release-assets/THIRD_PARTY_LICENSES.txt
+            release-manifest.json
+          )
 
           if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY" --clobber

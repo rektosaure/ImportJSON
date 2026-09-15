@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 
+await rm('build', { recursive: true, force: true });
 await mkdir('build', { recursive: true });
 
 await build({
@@ -21,5 +22,15 @@ await build({
 await writeFile('build/appsscript.json', JSON.stringify({
   timeZone: 'Etc/UTC', runtimeVersion: 'V8', exceptionLogging: 'STACKDRIVER',
 }, null, 2) + '\n');
-await copyFile('node_modules/json-p3/LICENCE', 'build/json-p3-LICENSE');
-await copyFile('node_modules/re2js/LICENSE', 'build/re2js-LICENSE');
+
+const thirdPartyLicenses = [
+  ['json-p3', await readFile('node_modules/json-p3/LICENCE', 'utf8')],
+  ['re2js', await readFile('node_modules/re2js/LICENSE', 'utf8')],
+];
+
+await writeFile(
+  'build/THIRD_PARTY_LICENSES.txt',
+  thirdPartyLicenses
+    .map(([name, license]) => `===== ${name} =====\n\n${license.trim()}\n`)
+    .join('\n'),
+);
