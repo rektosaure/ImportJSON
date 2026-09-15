@@ -2,13 +2,13 @@
 
 This document defines the small set of checks that require the real Google Sheets / Apps Script runtime. Automated product behavior belongs in `npm test`; this suite verifies only the platform integration that Node.js cannot fully reproduce.
 
-Run the suite against the exact release candidate Library bundle and `ImportJSON.gs` wrapper for the target `main` commit. After publication, repeat the same cases against the immutable Apps Script Library version recorded for the release.
+Run the suite after publication against the immutable Apps Script Library version and `ImportJSON.gs` wrapper from the same GitHub Release.
 
 ## Setup
 
-1. Add the candidate Apps Script Library to a disposable Google Sheet and use the identifier `ImportJSONLib`.
-2. Copy the candidate `ImportJSON.gs` wrapper into the bound Apps Script project.
-3. Record the exact Git commit SHA under test as `<ref>`.
+1. Add the published Apps Script Library version to a disposable Google Sheet and use the identifier `ImportJSONLib`.
+2. Copy the release's `ImportJSON.gs` wrapper into the bound Apps Script project.
+3. Record the release tag and exact Git commit SHA as `<ref>`.
 4. Replace `<ref>` in the fixture URLs below with that full commit SHA.
 5. Use one-dimensional cell ranges for the `columns` cases exactly as described.
 
@@ -124,9 +124,8 @@ The result must be identical to case 1. This verifies the public fifth-argument 
 
 ## Acceptance
 
-A candidate passes the live smoke suite only when:
+A release passes the live smoke suite only when:
 
-- all six cases pass in the same Sheet using the exact candidate wrapper and Library bundle;
-- the exact candidate revision or bundle checksum is recorded with the result;
-- no case unexpectedly exposes a native stack trace or remote response body;
-- the post-publication run against the immutable Apps Script Library version produces the same results.
+- all six cases pass in the same Sheet using the immutable Library version and wrapper from that release;
+- the release tag, exact Git commit, and Apps Script Library version are recorded with the result;
+- no case unexpectedly exposes a native stack trace or remote response body.
