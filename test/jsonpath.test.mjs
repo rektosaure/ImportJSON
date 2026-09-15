@@ -5,14 +5,47 @@ import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { JSONPathEnvironment } from 'json-p3';
 import { checkCase, checkSuite, equalJson } from './jsonpath/check.mjs';
-import { jsonP3, orderedSelect, budgetObservations, lazinessObservations } from './jsonpath/p3-probes.mjs';
+import { createJSONPathEnvironment } from '../src/jsonpath.mjs';
 import { patchJsonP3 } from '../src/json-p3-patch.mjs';
 
 const ctsBytes = await readFile(new URL('./jsonpath/fixtures/cts.json', import.meta.url));
 const { tests } = JSON.parse(ctsBytes);
 const ctsSha256 = 'f0932266a108d7b927f9a3fcc56e857f96c2bcd65c2acc25b70f3666b1dce7c3';
+
+function select(document, selector) {
+  const environment = createJSONPathEnvironment();
+  return Array.from(environment.query(selector, document), (node) => ({
+    value: node.value,
+    path: node.getPath({ form: 'canonical' }),
+  }));
+}
+
+async function buildForAppsScript(entryPoint, globalName) {
+  const result = await build({
+    entryPoints: [fileURLToPath(entryPoint)],
+    bundle: true,
+    write: false,
+    platform: 'neutral',
+    mainFields: ['module', 'main'],
+    format: 'iife',
+    globalName,
+    target: 'es2020',
+    legalComments: 'none',
+    minify: false,
+    plugins: [{
+      name: 'json-p3-apps-script-compat-test',
+      setup(buildContext) {
+        buildContext.onLoad({ filter: /[/\\]json-p3[/\\]dist[/\\]json-p3\.esm\.js$/ }, async ({ path }) => ({
+          contents: patchJsonP3(await readFile(path, 'utf8')),
+          loader: 'js',
+        }));
+      },
+    }],
+  });
+
+  return result.outputFiles[0].text;
+}
 
 test('pinned CTS snapshot matches its documented checksum and case count', () => {
   assert.equal(createHash('sha256').update(ctsBytes).digest('hex'), ctsSha256);
@@ -38,128 +71,110 @@ test('harness fails on accepted invalid queries and errors from valid queries', 
     { selector: '$', document: 1, result: [1], result_paths: ['$'] }), null);
 });
 
-test('json-p3 passes the complete pinned CTS', () => {
-  assert.deepEqual(checkSuite(jsonP3, tests).failures, []);
-});
-
-test('ordering through the documented entries hook still passes the complete CTS', () => {
-  assert.deepEqual(checkSuite(orderedSelect, tests).failures, []);
+test('public JSONPath environment passes the complete pinned CTS', () => {
+  assert.deepEqual(checkSuite(select, tests).failures, []);
 });
 
 test('object ordering handles numeric-looking names and Unicode code points', () => {
   const data = { z: 'z', a: 'a', '2': 'two', '10': 'ten', '\u{10000}': 'astral', '\uE000': 'bmp' };
-  assert.deepEqual(orderedSelect(data, '$.*').map((node) => node.value),
+  assert.deepEqual(select(data, '$.*').map((node) => node.value),
     ['ten', 'two', 'a', 'z', 'bmp', 'astral']);
 });
 
-test('explicit selector order, reverse slices and duplicates survive ordering', () => {
-  assert.deepEqual(orderedSelect(['a', 'b', 'c'], '$[2,0,2]').map((n) => n.value), ['c', 'a', 'c']);
-  assert.deepEqual(orderedSelect([1, 2, 3], '$[::-1]').map((n) => n.value), [3, 2, 1]);
-  assert.deepEqual(orderedSelect({ a: 1, z: 2 }, "$['z','a','z']").map((n) => n.value), [2, 1, 2]);
+test('explicit selector order, reverse slices and duplicates survive deterministic ordering', () => {
+  assert.deepEqual(select(['a', 'b', 'c'], '$[2,0,2]').map((node) => node.value), ['c', 'a', 'c']);
+  assert.deepEqual(select([1, 2, 3], '$[::-1]').map((node) => node.value), [3, 2, 1]);
+  assert.deepEqual(select({ a: 1, z: 2 }, "$['z','a','z']").map((node) => node.value), [2, 1, 2]);
 });
 
-test('a final-match consumer can throw without returning a partial result', () => {
-  const environment = new JSONPathEnvironment();
-  const limit = new Error('probe match budget exceeded');
-  let returned;
-  assert.throws(() => {
-    const values = [];
-    for (const node of environment.lazyQuery('$[*]', [1, 2, 3])) {
-      if (values.length === 2) throw limit;
-      values.push(node.value);
-    }
-    returned = values;
-  }, (error) => error === limit);
-  assert.equal(returned, undefined);
+test('invalid regex patterns are treated as no match', () => {
+  assert.deepEqual(select(['value'], "$[?match(@, '[')]"), []);
+  assert.deepEqual(select(['value'], "$[?search(@, '[')]"), []);
 });
 
-test('raw json-p3 still reproduces the lazy traversal and budget gaps', () => {
-  assert.deepEqual(lazinessObservations(), {
-    firstDone: false, firstValue: 0, readsBeforeFirstReturn: 1000,
-  });
-  assert.deepEqual(budgetObservations(), {
-    noMatchDone: true,
-    visitedBeforeFirstReturn: 1000,
-    noMatchEntriesCalls: 0,
-    nodeBudgetExceeded: false,
-    nodesVisited: 0,
-    selectorBudgets: {
-      name: { exceeded: false, nodesVisited: 0 },
-      index: { exceeded: false, nodesVisited: 0 },
-      slice: { exceeded: false, nodesVisited: 0 },
-      wildcard: { exceeded: false, nodesVisited: 0 },
-      descendant: { exceeded: false, nodesVisited: 0 },
-    },
-    objectOrderDeadlineExceeded: true,
-    objectOrderDeadlineChecks: 1,
-    deadlineExceeded: false,
-    deadlineChecks: 0,
-    depthRejected: true,
-  });
-});
-
-test('ImportJSON patch applies exactly to the pinned json-p3 bundle', async () => {
+test('Apps Script compatibility patch only removes the TextEncoder dependency', async () => {
   const raw = await readFile(new URL('../node_modules/json-p3/dist/json-p3.esm.js', import.meta.url), 'utf8');
   assert.match(raw, /new TextEncoder\(\)/);
   assert.match(raw, /new RegExp\(fullMatch\(pattern\), "u"\)/);
-  assert.match(raw, /return !!s\.match\(re\);/);
+
   const patched = patchJsonP3(raw);
   assert.doesNotMatch(patched, /new TextEncoder\(\)/);
-  assert.match(patched, /import \{ RE2JS \} from "re2js";/);
-  assert.match(patched, /RE2JS\.compile\(fullMatchRE2\(pattern\)\)/);
-  assert.match(patched, /RE2JS\.compile\(mapRE2Regexp\(pattern\)\)/);
-  assert.doesNotMatch(patched, /new RegExp\(fullMatch\(pattern\), "u"\)/);
-  assert.doesNotMatch(patched, /return !!s\.match\(re\);/);
-  assert.match(patched, /__importJSONVisitNode/);
-  assert.match(patched, /__importJSONCheckDeadline/);
-  assert.match(patched, /selector\.lazyResolve/);
+  assert.match(patched, /new RegExp\(fullMatch\(pattern\), "u"\)/);
+  assert.doesNotMatch(patched, /__importJSONVisitNode|__importJSONCheckDeadline/);
 });
 
-test('patched bundle passes compliance without Node runtime globals', async () => {
-  const result = await build({
-    entryPoints: [fileURLToPath(new URL('./jsonpath/apps-script.mjs', import.meta.url))],
-    bundle: true,
-    write: false,
-    platform: 'neutral',
-    mainFields: ['module', 'main'],
-    format: 'iife',
-    globalName: 'ImportJSONQualification',
-    target: 'es2020',
-    legalComments: 'none',
-    minify: false,
-    plugins: [{
-      name: 'json-p3-importjson-patch-test',
-      setup(buildContext) {
-        buildContext.onLoad({ filter: /[/\\]json-p3[/\\]dist[/\\]json-p3\.esm\.js$/ }, async ({ path }) => ({
-          contents: patchJsonP3(await readFile(path, 'utf8')),
-          loader: 'js',
-        }));
-      },
-    }],
-  });
+test('public JSONPath environment passes the full CTS in an Apps Script-like bundle', async () => {
+  const source = await buildForAppsScript(
+    new URL('./jsonpath/apps-script.mjs', import.meta.url),
+    'ImportJSONQualification',
+  );
 
-  const source = result.outputFiles[0].text;
+  assert.doesNotMatch(source, /__importJSONVisitNode|__importJSONCheckDeadline/);
+
   const context = createContext({ console: { log() {} } }, {
     codeGeneration: { strings: false, wasm: false },
   });
   runInContext(source, context, { timeout: 5000 });
+
   assert.equal(runInContext('typeof process + ":" + typeof require + ":" + typeof Buffer', context),
     'undefined:undefined:undefined');
   assert.equal(runInContext('typeof TextEncoder', context), 'undefined');
+
   const report = JSON.parse(runInContext(
     'JSON.stringify(ImportJSONQualification.smoke())', context, { timeout: 5000 },
   ));
-  assert.equal(report.compliance.passed, 704);
-  assert.equal(report.orderedCompliance.passed, 704);
-  assert.equal(report.compliance.failures.length, 0);
-  assert.equal(report.orderedCompliance.failures.length, 0);
+  assert.equal(report.passed, 704);
+  assert.deepEqual(report.failures, []);
   assert.equal(report.regexEngine, 're2js@2.8.6');
   assert.equal(report.textEncoderAvailable, false);
-  assert.equal(report.selectionPassed, true);
-  assert.deepEqual(report.laziness, { firstDone: false, firstValue: 0, readsBeforeFirstReturn: 1 });
-  assert.equal(report.budgets.nodeBudgetExceeded, true);
-  assert.equal(report.budgets.nodesVisited, 100);
-  assert.equal(report.budgets.deadlineExceeded, true);
-  assert.equal(report.budgets.depthRejected, true);
-  assert.equal('productionQualified' in report, false);
+});
+
+test('production adapter bundle supports public match/search overrides in an Apps Script-like runtime', async () => {
+  const source = await buildForAppsScript(
+    new URL('../src/apps-script.mjs', import.meta.url),
+    'ImportJSONAdapter',
+  );
+
+  assert.doesNotMatch(source, /__importJSONVisitNode|__importJSONCheckDeadline/);
+
+  const context = createContext({
+    UrlFetchApp: {
+      fetch() {
+        return {
+          getResponseCode() { return 200; },
+          getContentText() {
+            return '[{"name":"Alice","score":2},{"name":"Bob","score":1}]';
+          },
+        };
+      },
+    },
+  }, {
+    codeGeneration: { strings: false, wasm: false },
+  });
+
+  context.inputUrl = 'https://example.test/data.json';
+  context.inputColumns = [['/name', '/score']];
+  runInContext(source, context, { timeout: 5000 });
+
+  context.inputQuery = "$[?match(@.name, 'A.*')]";
+  const matchResult = JSON.parse(runInContext(
+    'JSON.stringify(ImportJSONAdapter.runImportJSON(inputUrl, inputQuery, inputColumns))',
+    context,
+    { timeout: 5000 },
+  ));
+  assert.deepEqual(matchResult, [
+    ['/name', '/score'],
+    ['Alice', 2],
+  ]);
+
+  context.inputQuery = "$[?search(@.name, 'ob')]";
+  const searchResult = JSON.parse(runInContext(
+    'JSON.stringify(ImportJSONAdapter.runImportJSON(inputUrl, inputQuery, inputColumns))',
+    context,
+    { timeout: 5000 },
+  ));
+  assert.deepEqual(searchResult, [
+    ['/name', '/score'],
+    ['Bob', 1],
+  ]);
 });

@@ -54,7 +54,12 @@ The adapter MUST NOT duplicate core selection, shaping, or projection rules.
 
 ## 2. JSONPath engine
 
-ImportJSON uses `json-p3@2.3.0` with the source patch in [`src/json-p3-patch.mjs`](../src/json-p3-patch.mjs) and `re2js@2.8.6` for RFC 9535 `match()` and `search()` behavior.
+ImportJSON uses `json-p3@2.3.0` for RFC 9535 evaluation and `re2js@2.8.6` for `match()` and `search()` behavior.
+
+`src/jsonpath.mjs` creates the JSONPath environment used by the product. It uses documented `json-p3` extension points to:
+
+- provide deterministic object-member traversal through the environment `entries` hook;
+- register RE2JS-backed `match()` and `search()` functions through `functionRegister`.
 
 The qualified engine MUST continue to:
 
@@ -63,9 +68,11 @@ The qualified engine MUST continue to:
 - avoid Node.js runtime dependencies that are unavailable in Apps Script;
 - avoid `eval`, `new Function`, and dynamic code generation for query evaluation;
 - preserve the order and multiplicity required by the functional specification;
-- support deterministic object-member traversal through the environment `entries` hook.
+- preserve deterministic object-member traversal where RFC 9535 permits multiple member orders.
 
-The patch also makes relevant selection paths lazy and exposes visit/deadline hooks used by qualification probes. These hooks are engine-level capabilities; the public v1 contract does not claim ImportJSON-specific size, depth, row, column, or execution-budget error codes that are not implemented by the product core.
+The production build applies one narrow source adaptation to pinned `json-p3@2.3.0`: it removes the dependency on `TextEncoder`, which is unavailable in Apps Script V8, from hexadecimal escape parsing. Regex behavior and traversal are not patched internally.
+
+ImportJSON does not add custom JSONPath traversal budgets, deadlines, or visit hooks. Platform execution limits may still terminate an invocation, but no ImportJSON-specific resource-limit contract exists unless the product explicitly implements and tests one.
 
 Any update or replacement of the JSONPath engine MUST repeat the qualification described in [`jsonpath-qualification.md`](jsonpath-qualification.md).
 
