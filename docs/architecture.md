@@ -62,7 +62,7 @@ The integration must remain compatible with Apps Script V8 without Node.js runti
 
 ### Qualification
 
-`test/jsonpath.test.mjs` is the executable qualification for this integration. It pins the RFC 9535 compliance fixture and verifies the complete suite, deterministic ordering, the RE2JS overrides, the `TextEncoder` assumption and shim, and the exact built production Library bundle in an Apps Script-like runtime.
+`test/jsonpath.test.mjs` is the executable qualification for this integration. It pins the complete RFC 9535 compliance fixture and requires every case except two upstream `match()` expectations that interpret `^` and `$` as anchors, contrary to their `NormalChar` status in RFC 9485. Those two divergences are asserted explicitly, while local regression tests verify the RFC 9485 literal-character behavior for `match()` and `search()`. The qualification also verifies deterministic ordering, the RE2JS overrides, the `TextEncoder` assumption and shim, and the exact built production Library bundle in an Apps Script-like runtime.
 
 Dependency or integration changes must keep that qualification passing. Test coverage is the source of truth for the individual checks; this document records only why the qualification boundary exists.
 
