@@ -11,6 +11,7 @@
     "test": "npm run build && node --test test/*.test.mjs"
   },
   "devDependencies": {
+    "@google/clasp": "3.4.1",
     "esbuild": "0.28.2",
     "json-p3": "2.3.0",
     "re2js": "2.8.6"

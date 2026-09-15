@@ -21,20 +21,21 @@ Treat `CLASPRC_JSON` as a password. Never commit `.clasprc.json` or `.clasp.json
 
 The workflow publishes exactly the current `main` commit. It:
 
-1. locks the release SHA to the current HEAD of `main` and aborts if `main` moves;
-2. finds the successful `CI` push run for that exact SHA;
-3. downloads that run's `importjson-release-candidate` artifact instead of rebuilding;
-4. derives the product version from immutable SemVer tags and Conventional Commit history;
-5. prepares the exact validated Apps Script bundle and manifest for publication;
-6. rechecks that `main` still points at the locked release SHA immediately before Apps Script publication;
-7. pushes the validated Apps Script files and creates one immutable Apps Script version;
-8. generates `SHA256SUMS` and `release-manifest.json`;
-9. creates the `vX.Y.Z` tag and GitHub Release, or repairs the same release on a retry;
-10. uploads the validated bundle, Apps Script manifest, user-facing wrapper, dependency licenses, and release metadata to the GitHub Release.
+1. installs the repository tooling with `npm ci` from `package-lock.json`;
+2. locks the release SHA to the current HEAD of `main` and aborts if `main` moves;
+3. finds the successful `CI` push run for that exact SHA;
+4. downloads that run's `importjson-release-candidate` artifact instead of rebuilding;
+5. derives the product version from immutable SemVer tags and Conventional Commit history;
+6. prepares the exact validated Apps Script bundle and manifest for publication;
+7. rechecks that `main` still points at the locked release SHA immediately before Apps Script publication;
+8. pushes the validated Apps Script files and creates one immutable Apps Script version;
+9. generates `SHA256SUMS` and `release-manifest.json`;
+10. creates the `vX.Y.Z` tag and GitHub Release, or repairs the same release on a retry;
+11. uploads the validated bundle, Apps Script manifest, user-facing wrapper, dependency licenses, and release metadata to the GitHub Release.
 
 The GitHub Release is created only after Apps Script publication succeeds. A failed Google publication therefore does not create a product release.
 
-The workflow uses `@google/clasp` at an exact pinned version. Third-party GitHub Actions are referenced by immutable commit SHA.
+`@google/clasp` is an exact direct development dependency installed from `package-lock.json`. Third-party GitHub Actions are referenced by immutable commit SHA.
 
 ## Version calculation
 
@@ -80,7 +81,7 @@ Apps Script version:  17
 Bundle SHA-256:       9fa8...
 ```
 
-`release-manifest.json` records the SemVer release, exact Git commit, CI run, Apps Script project/version, pinned publishing tool version, and hashes of the deployed Apps Script files plus the user-facing wrapper.
+`release-manifest.json` records the SemVer release, exact Git commit, CI run, Apps Script project/version, installed publishing tool version, and hashes of the deployed Apps Script files plus the user-facing wrapper.
 
 `SHA256SUMS` records hashes for every file copied from the validated CI release candidate.
 
