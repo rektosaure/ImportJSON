@@ -31,7 +31,7 @@ After HTTP acquisition, JSON values follow JavaScript runtime semantics. Numeric
 The only public Google Sheets function is:
 
 ```text
-IMPORTJSON(url, [query], [columns], [shape], [refreshKey])
+IMPORTJSON(url, [query], [columns], [shape], [refresh])
 ```
 
 For `query`, `columns`, and `shape`, an empty string is equivalent to omitting that argument. This applies to a literal empty string and to a single-cell value that is empty, regardless of whether later optional arguments are present. A blank entry inside a multi-cell `columns` range is not an omitted argument and remains invalid.
@@ -58,17 +58,40 @@ Google Sheets
 
 At most one shaping operation is applied per invocation.
 
-## 3. `url` and HTTP acquisition
+## 3. `url`, HTTP acquisition, and cache
 
 `url` MUST resolve to a non-empty absolute `http:` or `https:` URL. It MAY be supplied as a literal value or a single-cell reference.
 
 A multi-cell range used as `url` produces `INVALID_ARGUMENT`. An invalid URL or unsupported scheme produces `INVALID_URL`.
 
-The adapter MUST perform one GET request for the invocation, follow redirects, and accept only a final `2xx` response as success. A network failure, timeout, or final non-`2xx` response produces `HTTP_ERROR`.
+ImportJSON maintains a best-effort cache of successful anonymous HTTP response bodies. The cache identity is the URL; `query`, `columns`, and `shape` do not participate in HTTP cache identity.
+
+When cache lookup is permitted and an entry is available, the adapter MAY satisfy the invocation without a network request. A missing, expired, evicted, oversized, unavailable, or otherwise unusable cache entry MUST be treated as a normal cache miss and MUST NOT introduce a new public error.
+
+On cache miss, or when `refresh` requires a fresh request, the adapter MUST perform at most one GET request for the invocation, follow redirects, and accept only a final `2xx` response as success. A network failure, timeout, or final non-`2xx` response produces `HTTP_ERROR`.
 
 The adapter uses a 20-second HTTP timeout.
 
 The successful response body MUST parse as JSON. Otherwise the invocation produces `INVALID_JSON`.
+
+A fetched response is eligible to populate the cache only after the invocation successfully completes JSON parsing, selection, shaping, and projection. Failed HTTP acquisition, invalid JSON, invalid JSONPath, shaping errors, and other failed transformations MUST NOT populate the cache with the fetched body.
+
+The default requested cache lifetime is 600 seconds. This is an upper bound requested from the platform rather than a persistence guarantee: Apps Script MAY evict an entry earlier.
+
+ImportJSON MUST NOT store a fetched response when any of the following is present:
+
+- `Cache-Control: no-store`;
+- `Cache-Control: no-cache`;
+- `Cache-Control: private`;
+- `Cache-Control: max-age=0`;
+- `Cache-Control: s-maxage=0`;
+- `Vary: *`.
+
+When `s-maxage` is present, it takes precedence over `max-age` for the shared cache. A positive `s-maxage` or `max-age` shorter than 600 seconds shortens the requested cache lifetime. A larger value does not extend the lifetime beyond 600 seconds.
+
+When a fresh successful HTTP response forbids shared storage under these rules, ImportJSON SHOULD remove any prior cache entry for the same URL on a best-effort basis.
+
+Cache reads, writes, removals, platform eviction, and cache-size limits are optimization details and MUST NOT change the table produced from a given response body.
 
 ImportJSON does not accept raw JSON text in place of `url` through the public Sheets function.
 
@@ -207,19 +230,27 @@ Only direct array properties of the selected object participate in `columnar`. A
 
 Automatic projection derives columns only from produced logical rows. If matching direct arrays are empty and therefore produce no rows, automatic projection has no schema.
 
-## 12. `refreshKey`
+## 12. `refresh`
 
-`refreshKey` is ignored by the data engine but participates in Sheets formula dependency tracking.
+`refresh` controls cache lookup for the current evaluation and also participates normally in Google Sheets formula dependency tracking.
 
-Earlier optional arguments MAY be left blank when `refreshKey` is supplied because empty `query`, `columns`, and `shape` values are always treated as omitted:
+After single-cell normalization:
+
+- omitted, blank, `FALSE`, or numeric `0` means normal cache behavior;
+- `TRUE` or numeric `1` bypasses cache lookup and requires a fresh HTTP GET for that evaluation;
+- any other value or a multi-cell range produces `INVALID_ARGUMENT`.
+
+Earlier optional arguments MAY be left blank when `refresh` is supplied because empty `query`, `columns`, and `shape` values are always treated as omitted:
 
 ```text
 IMPORTJSON(A1, , , , B1)
 ```
 
-Public documentation MUST NOT recommend volatile functions such as `NOW()`, `RAND()`, or `RANDBETWEEN()` as a refresh mechanism.
+A successful cache-eligible refresh replaces the existing cached response for the URL. A failed network request or failed data transformation does not replace the previous cached response. A fresh response that forbids shared caching under Section 3 removes the prior entry on a best-effort basis.
 
-ImportJSON does not maintain its own HTTP cache and does not guarantee that remote changes are observed until Google Sheets reevaluates the formula.
+If `refresh` remains `TRUE` or `1`, every later Sheets reevaluation of that formula bypasses cache lookup again. A checkbox therefore works naturally as a manual refresh control: switch it to `TRUE` to force a request, then back to `FALSE` to resume normal cache use.
+
+Public documentation MUST NOT recommend volatile functions such as `NOW()`, `RAND()`, or `RANDBETWEEN()` as a refresh mechanism.
 
 ## 13. Rendering in Google Sheets
 
@@ -251,21 +282,23 @@ INVALID_COLUMNAR_TARGET
 COLUMN_LENGTH_MISMATCH
 ```
 
+`INVALID_ARGUMENT` includes unsupported argument shapes and invalid `refresh` values.
+
 `INVALID_COLUMNAR_TARGET` means that `columnar` received a selected record that is not an object or has no direct array property. `COLUMN_LENGTH_MISMATCH` means sibling direct arrays in one selected `columnar` record have unequal lengths.
 
 Errors MUST NOT expose native stack traces or remote response bodies through normal public adapter messages.
 
 ## 15. Platform limits
 
-ImportJSON runs within Google Apps Script and Google Sheets. Platform execution, service, cell, and spill limits therefore apply.
+ImportJSON runs within Google Apps Script and Google Sheets. Platform execution, service, cache, cell, and spill limits therefore apply.
 
-The current implementation defines an explicit 20-second HTTP timeout but does not define additional ImportJSON-specific public error codes for platform size, depth, row-count, column-count, or execution limits.
+The current implementation defines an explicit 20-second HTTP timeout and requests at most 600 seconds of HTTP cache lifetime, but does not define additional ImportJSON-specific public error codes for platform size, depth, row-count, column-count, cache-value size, or execution limits.
 
-No platform-limit failure is specified as a successful truncated table.
+A response that cannot be stored by Apps Script CacheService MUST still be processed normally. No platform-limit failure is specified as a successful truncated table.
 
 ## 16. Scope
 
-The public API consists only of `IMPORTJSON` with the arguments and behavior defined above. It does not define additional option languages, automatic date conversion, automatic recursive array expansion, joins between sources, JSON writing, custom HTTP methods, or a second public table function.
+The public API consists only of `IMPORTJSON` with the arguments and behavior defined above. It does not define additional option languages, automatic date conversion, automatic recursive array expansion, joins between sources, JSON writing, custom HTTP methods, authentication, or a second public table function.
 
 ## References
 
@@ -275,3 +308,4 @@ The public API consists only of `IMPORTJSON` with the arguments and behavior def
 - RFC 9535 — JSONPath
 - RFC 6901 — JSON Pointer
 - Google Apps Script — Custom Functions in Google Sheets
+- Google Apps Script — Cache Service
