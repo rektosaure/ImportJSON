@@ -88,13 +88,14 @@ The JSONPath engine MUST remain qualified as described in [`jsonpath-qualificati
 Automated qualification MUST verify:
 
 - the pinned CTS fixture checksum and expected case count;
-- 704/704 RFC 9535 compliance cases;
+- 704/704 RFC 9535 compliance cases through the product JSONPath environment;
 - deterministic object-member traversal without changing selector-defined order;
 - preservation of duplicates and reverse slices;
-- exact application of the ImportJSON patch to the pinned `json-p3` source;
-- `re2js@2.8.6` execution for `match()` and `search()`;
+- `re2js@2.8.6` execution for `match()` and `search()` through the public `functionRegister` API;
+- exact application of the narrow Apps Script `TextEncoder` compatibility patch to pinned `json-p3`;
 - operation of the bundled qualification target without Node.js runtime globals or `TextEncoder`;
-- lazy traversal and the visit/deadline hooks exercised by the qualification probes.
+- execution of `match()` and `search()` through the real Apps Script adapter bundle in an Apps Script-like runtime;
+- absence of ImportJSON-specific traversal, visit, budget, or deadline hooks.
 
 ## Live Google Sheets smoke
 

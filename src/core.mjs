@@ -1,4 +1,4 @@
-import { JSONPathEnvironment } from 'json-p3';
+import { createJSONPathEnvironment } from './jsonpath.mjs';
 
 function fail(code, message) {
   const error = new Error(`${code}: ${message}`);
@@ -170,9 +170,7 @@ function selectRecords(document, query) {
     fail('INVALID_ARGUMENT', 'query must be a non-empty JSONPath string');
   }
 
-  const environment = new JSONPathEnvironment();
-  environment.entries = (object) => Object.entries(object)
-    .sort(([left], [right]) => compareUnicodeCodePoints(left, right));
+  const environment = createJSONPathEnvironment();
 
   try {
     return Array.from(environment.query(query, document), (node) => node.value);
