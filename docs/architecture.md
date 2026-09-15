@@ -51,22 +51,26 @@ The adapter does not implement selection, shaping, or projection semantics. Thos
 
 ## 2. HTTP cache runtime integration
 
-ImportJSON caches the raw HTTP response body before it enters the core. The cache therefore depends on HTTP request identity, not on JSONPath selection, shaping, or projection.
+The cache stores the raw HTTP response body. A cached body is fed back through the core on every invocation, so `query`, `columns`, and `shape` are always evaluated independently of cache reuse.
 
-The current request identity is anonymous and consists of the exact normalized URL. Cache keys use a versioned prefix plus a SHA-256 digest rather than the raw URL, so long URLs and URL query data are not exposed as CacheService keys.
+For a fetched response, cache eligibility is decided from HTTP response headers and the raw body is written only after the core has successfully parsed and transformed it. The implementation therefore never caches a body merely because the HTTP status was successful.
+
+The current request identity consists only of the exact URL string accepted by the adapter. URL validation does not canonicalize cache identity: host casing, query-parameter order, fragments, or any other textual difference remain distinct if the supplied strings differ. Cache keys use a versioned prefix plus a SHA-256 digest rather than the raw URL, so long URLs and URL query data are not exposed directly as CacheService keys.
 
 The cache uses `CacheService.getScriptCache()`. This has deliberately different physical scope in the two supported installation modes:
 
 - in Apps Script Library mode, CacheService is a Library-owned resource and the Script Cache is shared by consuming scripts;
 - in manual installation mode, the same bundle runs in the spreadsheet's bound Apps Script project and uses that project's Script Cache.
 
-This difference changes cache hit rate, not functional output. Cache access is strictly best effort: cache setup, reads, writes, removals, eviction, quota pressure, and oversized values fall back to normal HTTP behavior without introducing a cache-specific public error.
+This difference changes cache hit rate and cache scope, not table semantics. It also means that, in Library mode, an eligible body for one exact URL can be reused by another spreadsheet using the same Library and exact URL. User-facing privacy guidance for signed or sensitive URLs belongs in the [User Guide](user-guide.md#http-cache-refresh-and-sensitive-urls).
 
-The adapter requests a maximum cache lifetime of 600 seconds and honors restrictive shared-cache response directives as defined by the functional specification. A response body is written only after the core has successfully parsed and transformed it. No compression, chunking, persistence layer, or `LockService` coordination is used.
+Cache access is strictly best effort: cache setup, reads, writes, removals, eviction, quota pressure, and oversized values fall back to normal HTTP behavior without introducing a cache-specific public error.
 
-`refresh=TRUE` or `1` bypasses cache lookup but keeps the same cache key. A successful cache-eligible refresh replaces the existing entry. This keeps one current entry per anonymous URL instead of creating generations keyed by refresh values.
+The adapter requests a maximum cache lifetime of 600 seconds and honors restrictive shared-cache response directives as defined by the functional specification. No compression, chunking, persistence layer, or `LockService` coordination is used.
 
-Any future authenticated HTTP support must extend request identity before authenticated responses can use this shared cache. In particular, authenticated and anonymous requests, or requests using different credentials, must never share a cache entry solely because their URLs match.
+`refresh=TRUE` or `1` bypasses cache lookup but keeps the same cache key. A successful cache-eligible refresh replaces the existing entry. This keeps one current entry per URL instead of creating generations keyed by refresh values.
+
+ImportJSON currently has no credential or authentication subsystem. Any future authenticated HTTP support must extend request identity before authenticated responses can use this shared cache. Authenticated and unauthenticated requests, or requests using different credentials, must never share a cache entry solely because their URLs match.
 
 ## 3. JSONPath runtime integration
 
