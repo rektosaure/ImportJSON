@@ -91,7 +91,6 @@ export function createReleasePlan() {
   if (headTags.length > 0) {
     const tagName = headTags[0];
     return {
-      mode: 'retry',
       bump: null,
       previousTag: null,
       version: tagName.slice(1),
@@ -104,7 +103,6 @@ export function createReleasePlan() {
 
   if (!previousTag) {
     return {
-      mode: 'new',
       bump: null,
       previousTag: null,
       version: '1.0.0',
@@ -121,7 +119,6 @@ export function createReleasePlan() {
 
   const version = nextVersion(previousVersion, bump);
   return {
-    mode: 'new',
     bump,
     previousTag,
     version,

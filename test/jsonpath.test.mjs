@@ -122,11 +122,8 @@ test('public JSONPath environment passes the full CTS in an Apps Script-like bun
   assert.equal(report.textEncoderAvailable, false);
 });
 
-test('production adapter bundle supports public match/search overrides in an Apps Script-like runtime', async () => {
-  const source = await buildForAppsScript(
-    new URL('../src/apps-script.mjs', import.meta.url),
-    'ImportJSONAdapter',
-  );
+test('built production Library bundle supports public match/search overrides in an Apps Script-like runtime', async () => {
+  const source = await readFile('build/importjson-library.gs', 'utf8');
 
   assert.doesNotMatch(source, /__importJSONVisitNode|__importJSONCheckDeadline/);
 
@@ -149,9 +146,12 @@ test('production adapter bundle supports public match/search overrides in an App
   context.inputColumns = [['/name', '/score']];
   runInContext(source, context, { timeout: 5000 });
 
+  assert.equal(runInContext('typeof IMPORTJSON', context), 'function');
+  assert.equal(runInContext('typeof TextEncoder', context), 'undefined');
+
   context.inputQuery = "$[?match(@.name, 'A.*')]";
   const matchResult = JSON.parse(runInContext(
-    'JSON.stringify(ImportJSONAdapter.runImportJSON(inputUrl, inputQuery, inputColumns))',
+    'JSON.stringify(IMPORTJSON(inputUrl, inputQuery, inputColumns))',
     context,
     { timeout: 5000 },
   ));
@@ -162,7 +162,7 @@ test('production adapter bundle supports public match/search overrides in an App
 
   context.inputQuery = "$[?search(@.name, 'ob')]";
   const searchResult = JSON.parse(runInContext(
-    'JSON.stringify(ImportJSONAdapter.runImportJSON(inputUrl, inputQuery, inputColumns))',
+    'JSON.stringify(IMPORTJSON(inputUrl, inputQuery, inputColumns))',
     context,
     { timeout: 5000 },
   ));
