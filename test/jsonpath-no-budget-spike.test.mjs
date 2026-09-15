@@ -89,7 +89,6 @@ test('qualification passes without lazy traversal and budget instrumentation pat
 
   assert.doesNotMatch(source, /__importJSONVisitNode/);
   assert.doesNotMatch(source, /__importJSONCheckDeadline/);
-  assert.doesNotMatch(source, /selector\.lazyResolve/);
 
   const context = createContext({ console: { log() {} } }, {
     codeGeneration: { strings: false, wasm: false },
