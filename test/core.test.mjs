@@ -202,11 +202,15 @@ test('shape JSON Pointer allows heterogeneous values without a cartesian product
   });
 });
 
-test('empty pointer expansion keeps only discoverable outside schema', () => {
-  assert.deepEqual(table([
-    { id: 1, items: [] },
-  ], { shape: '/items' }), {
-    headers: ['/id'],
+test('empty pointer expansion has no automatic schema but preserves explicit headers', () => {
+  const document = [{ id: 1, items: [] }];
+
+  assert.deepEqual(table(document, { shape: '/items' }), {
+    headers: [],
+    rows: [],
+  });
+  assert.deepEqual(table(document, { shape: '/items', columns: ['/id', '/items'] }), {
+    headers: ['/id', '/items'],
     rows: [],
   });
 });
@@ -294,13 +298,13 @@ test('columnar shape applies explicit projection after row construction', () => 
   });
 });
 
-test('columnar shape preserves outside schema when parallel arrays are empty', () => {
+test('columnar shape has no automatic schema when parallel arrays are empty', () => {
   assert.deepEqual(table({
     ticker: 'AAPL',
     year: [],
     eps: [],
   }, { shape: 'columnar' }), {
-    headers: ['/ticker'],
+    headers: [],
     rows: [],
   });
 });
