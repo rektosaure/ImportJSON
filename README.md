@@ -52,7 +52,7 @@ returns:
 ```text
 /details/active   /id   /name
 TRUE              1     Alpha
-FALSE             2     Beta
+FALSE              2     Beta
 ```
 
 Some Google Sheets locales use semicolons instead of commas as formula argument separators.
@@ -94,7 +94,7 @@ Use a checkbox or boolean value in `B1` to force a fresh request for one evaluat
 
 ## HTTP cache
 
-ImportJSON keeps eligible successful response bodies in a best-effort Apps Script cache for at most 10 minutes. Cache identity uses the exact URL string supplied to ImportJSON; `query`, `columns`, and `shape` do not participate.
+ImportJSON keeps eligible successful response bodies in a best-effort Apps Script cache for at most 1 hour. Cache identity uses the exact URL string supplied to ImportJSON; `query`, `columns`, and `shape` do not participate.
 
 In the recommended Library installation, that cache belongs to the Library and can be reused by different spreadsheets using the same Library. See the [User Guide](docs/user-guide.md#http-cache-refresh-and-sensitive-urls) before using signed, tokenized, private, or otherwise sensitive URLs.
 
