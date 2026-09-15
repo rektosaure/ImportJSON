@@ -12,14 +12,32 @@ Examples use commas as formula argument separators. Some Google Sheets locales r
 
 ## Installation and prerequisites
 
-ImportJSON v1 is distributed as an Apps Script Library plus a small wrapper.
+Each ImportJSON release supports two installation modes. Use files from a GitHub release rather than a development branch.
 
-1. In the spreadsheet, open **Extensions → Apps Script**.
-2. Add the published ImportJSON Library version using the Script ID and Apps Script version supplied for the release, and set its identifier to `ImportJSONLib`.
-3. Download the `ImportJSON.gs` wrapper asset from that same GitHub release and copy it into the bound Apps Script project.
-4. Save the project and return to the spreadsheet.
+### Apps Script Library (recommended)
 
-The [README](../README.md) lists the current release installation settings. Use an immutable Apps Script Library version and the wrapper from the matching GitHub release rather than files from a development branch.
+This keeps the full implementation in the published Library and adds only a small wrapper to the spreadsheet project.
+
+1. Open the [latest GitHub release](https://github.com/rektosaure/ImportJSON/releases/latest).
+2. Open its `release-manifest.json` asset and note `appsScript.scriptId` and `appsScript.version`.
+3. In the spreadsheet, open **Extensions → Apps Script**.
+4. Add the Library using the Script ID and immutable Apps Script version from the manifest, and set its identifier to `ImportJSONLib`.
+5. Download the `ImportJSON.gs` wrapper from the same release and copy it into the bound Apps Script project.
+6. Save the project and return to the spreadsheet.
+
+The wrapper and Apps Script Library version must come from the same release.
+
+### Manual installation
+
+This installs the complete implementation directly in the bound Apps Script project and does not use an Apps Script Library.
+
+1. Open the [latest GitHub release](https://github.com/rektosaure/ImportJSON/releases/latest).
+2. Download `importjson-library.gs`.
+3. In the spreadsheet, open **Extensions → Apps Script**.
+4. Create a script file in the bound project and replace its contents with the contents of `importjson-library.gs`.
+5. Save the project and return to the spreadsheet.
+
+Do not also add the `ImportJSON.gs` wrapper in manual mode. The complete bundle already exposes the public `IMPORTJSON` custom function.
 
 The source URL must be reachable by an HTTP or HTTPS GET request from Apps Script and must return valid JSON. The formula also needs enough empty cells for its result to spill.
 

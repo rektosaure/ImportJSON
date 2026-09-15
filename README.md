@@ -4,9 +4,13 @@ ImportJSON is a Google Sheets custom function that fetches one JSON document fro
 
 It uses standard JSON tools: JSONPath (RFC 9535) selects nodes, JSON Pointer (RFC 6901) identifies columns, and an optional `shape` argument performs one explicit structural transformation when nested data needs to become rows.
 
-## Install
+## Installation
 
-Each ImportJSON release is distributed as an immutable Apps Script Library version plus a small wrapper.
+Each ImportJSON release supports two installation modes. In both cases, use files from a GitHub release rather than a development branch.
+
+### Apps Script Library (recommended)
+
+This keeps the full implementation in the published Library and adds only a small wrapper to the spreadsheet project.
 
 1. Open the [latest GitHub release](https://github.com/rektosaure/ImportJSON/releases/latest).
 2. Open its `release-manifest.json` asset and note `appsScript.scriptId` and `appsScript.version`.
@@ -16,7 +20,19 @@ Each ImportJSON release is distributed as an immutable Apps Script Library versi
 6. Download `ImportJSON.gs` from that same GitHub release and copy it into the bound Apps Script project.
 7. Save the project and return to the sheet.
 
-Always use the wrapper and Apps Script version from the same release. Do not install files directly from a development branch.
+Always use the wrapper and immutable Apps Script Library version from the same release.
+
+### Manual installation
+
+This installs the complete implementation directly in the spreadsheet project and does not use an Apps Script Library.
+
+1. Open the [latest GitHub release](https://github.com/rektosaure/ImportJSON/releases/latest).
+2. Download `importjson-library.gs`.
+3. In the Google Sheet, choose **Extensions → Apps Script**.
+4. Create a script file in the bound project and replace its contents with the contents of `importjson-library.gs`.
+5. Save the project and return to the sheet.
+
+Do not also install the `ImportJSON.gs` wrapper in manual mode: the complete bundle already exposes the `IMPORTJSON` custom function.
 
 ## Quick start
 
