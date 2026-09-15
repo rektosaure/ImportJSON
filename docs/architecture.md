@@ -68,20 +68,19 @@ Dependency or integration changes must keep that qualification passing. Test cov
 
 ## 3. Build and distribution
 
-`scripts/build.mjs` produces the standalone Apps Script Library files in `build/`:
+`scripts/build.mjs` produces the generated build inputs in `build/`:
 
 ```text
 build/importjson-library.gs
 build/appsscript.json
-build/json-p3-LICENSE
-build/re2js-LICENSE
+build/THIRD_PARTY_LICENSES.txt
 ```
 
-`build/` is generated and is not committed.
+`build/` is generated and is not committed. `appsscript.json` is the internal Apps Script project manifest used for Library publication, while `THIRD_PARTY_LICENSES.txt` consolidates the notices for dependencies bundled into the generated code.
 
 `src/apps-script-globals.js` is appended to the bundle so the standalone Library exposes `IMPORTJSON(...)` in Apps Script. `dist/ImportJSON.gs` is the small user-facing wrapper copied into the consuming spreadsheet project; it delegates to the published Library through the identifier `ImportJSONLib`.
 
-The Library bundle and wrapper intentionally remain separate artifacts. The release workflow tests and builds the selected `main` commit, then publishes those exact outputs without a second build step.
+The Library bundle and wrapper intentionally remain separate installable artifacts. The release workflow tests and builds the selected `main` commit, then publishes those exact outputs without a second build step. The exact public release asset set is documented in [Releasing](releasing.md).
 
 ## 4. Change discipline
 

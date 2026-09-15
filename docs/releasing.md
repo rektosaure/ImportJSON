@@ -76,7 +76,7 @@ Do not encode the Apps Script integer into product SemVer and do not maintain a 
 
 Automated release validation is `npm test` executed inside the release workflow on the exact commit being published. The tests include core behavior, Apps Script adapter behavior, distribution checks, and the pinned JSONPath qualification described in [Architecture](architecture.md).
 
-After publication, run the manual [Google Sheets smoke tests](smoke-tests.md) against the immutable Apps Script Library version and wrapper from the same GitHub Release. These checks cover only behavior that requires the real Google Sheets / Apps Script runtime.
+After publication, run the manual [Google Sheets smoke tests](smoke-tests.md) for both supported installation modes. The complete runtime matrix uses the immutable Apps Script Library version and matching wrapper, and one additional sanity check verifies that `importjson-library.gs` works as a direct manual installation. These checks cover only behavior that requires the real Google Sheets / Apps Script runtime.
 
 If a release fails its real-runtime smoke test, fix the problem through the normal branch and pull-request workflow and publish a new version. Do not mutate an already consumed product contract to hide a failed release.
 
