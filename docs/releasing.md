@@ -1,10 +1,10 @@
 # Releasing
 
-ImportJSON releases are published manually from the current `main` commit through one GitHub Actions workflow: **Publish release**.
+ImportJSON releases are published manually from the current `main` commit through the **Publish release** GitHub Actions workflow.
 
-Normal development remains unchanged: work on a branch, open a pull request, and squash-merge it into `main`. Pull request titles use Conventional Commit format. CI builds and tests every `main` commit and uploads the exact release candidate as the `importjson-release-candidate` artifact.
+Development uses branches, pull requests, squash merges into `main`, and Conventional Commit pull request titles. CI builds and tests every `main` commit and uploads the exact release candidate as the `importjson-release-candidate` artifact.
 
-When a product release is wanted, open **Actions → Publish release**, select `main`, and run the workflow. No version number, tag, GitHub Release, or Apps Script version is entered manually.
+To publish a product release, open **Actions → Publish release**, select `main`, and run the workflow. No version number, tag, GitHub Release, or Apps Script version is entered manually.
 
 ## One-time repository setup
 
@@ -13,7 +13,7 @@ The publish workflow requires two GitHub Actions values:
 - repository variable `APPS_SCRIPT_ID`: the Script ID of the standalone Apps Script project used as the ImportJSON Library;
 - repository secret `CLASPRC_JSON`: the complete contents of `~/.clasprc.json` produced by `clasp login` for a Google account that can edit that Apps Script project.
 
-The target Apps Script project must already exist, be configured and shared as the production Library, and have the Apps Script API enabled for the publishing account.
+The target Apps Script project must exist, be configured and shared as the production Library, and have the Apps Script API enabled for the publishing account.
 
 Treat `CLASPRC_JSON` as a password. Never commit `.clasprc.json` or `.clasp.json`; both are ignored by Git.
 
@@ -34,11 +34,11 @@ The workflow publishes exactly the current `main` commit. It:
 
 The GitHub Release is created only after Apps Script publication succeeds. A failed Google publication therefore does not create a product release.
 
-The workflow uses `@google/clasp` at an exact pinned version. Third-party GitHub Actions are referenced by immutable commit SHA rather than floating tags.
+The workflow uses `@google/clasp` at an exact pinned version. Third-party GitHub Actions are referenced by immutable commit SHA.
 
 ## Version calculation
 
-The first public release is always `v1.0.0`. It does not depend on historical pre-publication commit messages.
+The first public release is `v1.0.0`.
 
 After `v1.0.0`, squash-merged pull request titles drive SemVer changes and must use Conventional Commit format.
 
@@ -71,7 +71,7 @@ The publish workflow promotes these exact CI-produced files. It does not rebuild
 
 ## Release identity
 
-Product and Apps Script versions are intentionally different identifiers. For example:
+Product and Apps Script versions are different identifiers. For example:
 
 ```text
 GitHub release:       v1.2.0
@@ -92,12 +92,12 @@ The Apps Script version description contains the product tag and release Git SHA
 
 If the SemVer tag already points at the current `main` commit, the version calculator enters retry mode instead of incrementing the version again. If the GitHub Release already exists, its assets are replaced in place.
 
-This makes a rerun safe after a partial failure without consuming another product version or Apps Script version.
+A rerun after a partial failure therefore does not consume another product version or Apps Script version.
 
 ## Artifact availability
 
-Publication depends on the `importjson-release-candidate` artifact from the successful CI run for the current `main` commit. Publish while that artifact is still retained by GitHub Actions. If it has expired, rerun that exact CI commit before publishing; the publish workflow never silently rebuilds different bytes.
+Publication depends on the `importjson-release-candidate` artifact from the successful CI run for the current `main` commit. Publish while that artifact is retained by GitHub Actions. If it has expired, rerun that exact CI commit before publishing; the publish workflow does not rebuild different bytes.
 
 ## Version budget
 
-Apps Script projects have a finite version history. ImportJSON therefore creates Apps Script versions only when **Publish release** is explicitly run, never for pull requests or ordinary `main` commits.
+Apps Script projects have a finite version history. ImportJSON creates Apps Script versions only when **Publish release** is explicitly run, never for pull requests or ordinary `main` commits.

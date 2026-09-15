@@ -16,6 +16,6 @@ export function smoke() {
     passed: suite.tests.length - report.failures.length,
     failures: report.failures,
     regexEngine: 're2js@2.8.6',
-    textEncoderAvailable: typeof TextEncoder !== 'undefined',
+    textEncoderAvailable: typeof globalThis.TextEncoder !== 'undefined',
   };
 }

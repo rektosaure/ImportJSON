@@ -7,11 +7,14 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { checkCase, checkSuite, equalJson } from './jsonpath/check.mjs';
 import { createJSONPathEnvironment } from '../src/jsonpath.mjs';
-import { patchJsonP3 } from '../src/json-p3-patch.mjs';
+import { TextEncoder as AppsScriptTextEncoder } from '../src/apps-script-text-encoder.mjs';
 
 const ctsBytes = await readFile(new URL('./jsonpath/fixtures/cts.json', import.meta.url));
 const { tests } = JSON.parse(ctsBytes);
 const ctsSha256 = 'f0932266a108d7b927f9a3fcc56e857f96c2bcd65c2acc25b70f3666b1dce7c3';
+const textEncoderShimPath = fileURLToPath(
+  new URL('../src/apps-script-text-encoder.mjs', import.meta.url),
+);
 
 function select(document, selector) {
   const environment = createJSONPathEnvironment();
@@ -33,15 +36,7 @@ async function buildForAppsScript(entryPoint, globalName) {
     target: 'es2020',
     legalComments: 'none',
     minify: false,
-    plugins: [{
-      name: 'json-p3-apps-script-compat-test',
-      setup(buildContext) {
-        buildContext.onLoad({ filter: /[/\\]json-p3[/\\]dist[/\\]json-p3\.esm\.js$/ }, async ({ path }) => ({
-          contents: patchJsonP3(await readFile(path, 'utf8')),
-          loader: 'js',
-        }));
-      },
-    }],
+    inject: [textEncoderShimPath],
   });
 
   return result.outputFiles[0].text;
@@ -92,15 +87,13 @@ test('invalid regex patterns are treated as no match', () => {
   assert.deepEqual(select(['value'], "$[?search(@, '[')]"), []);
 });
 
-test('Apps Script compatibility patch only removes the TextEncoder dependency', async () => {
+test('Apps Script TextEncoder shim is limited to json-p3 hexadecimal parsing', async () => {
   const raw = await readFile(new URL('../node_modules/json-p3/dist/json-p3.esm.js', import.meta.url), 'utf8');
-  assert.match(raw, /new TextEncoder\(\)/);
-  assert.match(raw, /new RegExp\(fullMatch\(pattern\), "u"\)/);
+  assert.equal(raw.match(/new TextEncoder\(\)/g)?.length ?? 0, 1);
+  assert.match(raw, /for \(const digit of encoder\.encode\(digits\)\) \{/);
 
-  const patched = patchJsonP3(raw);
-  assert.doesNotMatch(patched, /new TextEncoder\(\)/);
-  assert.match(patched, /new RegExp\(fullMatch\(pattern\), "u"\)/);
-  assert.doesNotMatch(patched, /__importJSONVisitNode|__importJSONCheckDeadline/);
+  assert.deepEqual(Array.from(new AppsScriptTextEncoder().encode('09aAfF')), [48, 57, 97, 65, 102, 70]);
+  assert.throws(() => new AppsScriptTextEncoder().encode('é'), /only supports ASCII/);
 });
 
 test('public JSONPath environment passes the full CTS in an Apps Script-like bundle', async () => {

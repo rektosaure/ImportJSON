@@ -2,7 +2,7 @@
 
 This document defines the minimum release validation for public v1. The [Functional Specification](functional-specification.md) defines observable behavior and [`architecture.md`](architecture.md) defines technical invariants.
 
-Use only the build and test commands committed in the repository. The current validation command is:
+Use the repository build and test commands:
 
 ```sh
 npm ci
@@ -79,31 +79,26 @@ COLUMN_LENGTH_MISMATCH
 
 Do not publish additional ImportJSON-specific error codes unless they are implemented and covered by acceptance tests.
 
-Platform execution, cell, and spill limits may still fail an invocation. Those failures are not part of the current ImportJSON-specific error-code contract unless the implementation explicitly maps them.
+Platform execution, cell, and spill limits may still fail an invocation. Those failures are outside the ImportJSON-specific error-code contract unless explicitly mapped by the product.
 
 ## JSONPath qualification
 
-The JSONPath engine MUST remain qualified as described in [`jsonpath-qualification.md`](jsonpath-qualification.md).
+The JSONPath engine MUST satisfy [`jsonpath-qualification.md`](jsonpath-qualification.md), including:
 
-Automated qualification MUST verify:
-
-- the pinned CTS fixture checksum and expected case count;
-- 704/704 RFC 9535 compliance cases through the product JSONPath environment;
-- deterministic object-member traversal without changing selector-defined order;
-- preservation of duplicates and reverse slices;
-- `re2js@2.8.6` execution for `match()` and `search()` through the public `functionRegister` API;
-- exact application of the narrow Apps Script `TextEncoder` compatibility patch to pinned `json-p3`;
-- operation of the bundled qualification target without Node.js runtime globals or `TextEncoder`;
-- execution of `match()` and `search()` through the real Apps Script adapter bundle in an Apps Script-like runtime;
-- absence of ImportJSON-specific traversal, visit, budget, or deadline hooks.
+- the pinned CTS checksum and **704/704** compliance cases;
+- deterministic ordering, duplicates, and reverse slices;
+- RE2JS-backed `match()` and `search()`;
+- Apps Script `TextEncoder` compatibility;
+- Apps Script-like execution without unavailable Node.js globals;
+- the real Apps Script adapter bundle.
 
 ## Live Google Sheets smoke
 
-Before a public release, the exact candidate production bundle and wrapper MUST pass the complete real-runtime matrix in [`smoke-tests.md`](smoke-tests.md) using Google Apps Script V8 and a real Google Sheet.
+Before a public release, the exact candidate production bundle and wrapper MUST pass [`smoke-tests.md`](smoke-tests.md) in Google Apps Script V8 and a real Google Sheet.
 
-The smoke result MUST identify the exact tested commit revision or candidate bundle checksum so it cannot be confused with another build. The suite includes the established integration baseline plus explicit coverage for `columnar`, non-array root semantics, explicit `$`, literal pointer projection, null/missing rendering, deterministic structured-value serialization, `HTTP_ERROR`, and `INVALID_JSON`.
+The smoke result MUST identify the tested commit revision or candidate bundle checksum. Coverage includes `columnar`, non-array root semantics, explicit `$`, literal pointer projection, null/missing rendering, deterministic structured-value serialization, `HTTP_ERROR`, and `INVALID_JSON`.
 
-After publication, the same matrix MUST be repeated against the immutable Apps Script Library version associated with the release.
+After publication, the same matrix MUST pass against the immutable Apps Script Library version associated with the release.
 
 ## Distribution
 
@@ -120,11 +115,11 @@ The candidate and immutable Library versions MUST be tested with the wrapper thr
 
 Before release, verify that:
 
-- `README.md` remains a focused landing page rather than a full reference;
+- `README.md` remains a focused landing page;
 - `docs/user-guide.md` covers all public arguments, shaping modes, projection rules, ordering, rendering, errors, and platform-limit behavior;
 - all maintained documentation is in English;
-- examples are generic and provider-independent except where a real endpoint is strictly needed for installation testing;
+- examples are generic and provider-independent except where a real endpoint is required for installation testing;
 - the only documented public signature is `IMPORTJSON(url, [query], [columns], [shape], [refreshKey])`;
 - `columnar` is described as a generic object-of-arrays transformation;
-- no migration notes, abandoned argument names, experimental compatibility rules, or historical implementation narratives remain in current product documentation;
+- documentation describes the current product only;
 - public error lists contain only codes implemented by the current product.
