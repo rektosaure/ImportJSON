@@ -160,10 +160,7 @@ function expandRecords(records, shape) {
     }
   }
 
-  return {
-    records: shapedRecords,
-    shaped: true,
-  };
+  return shapedRecords;
 }
 
 function columnarizeRecords(records) {
@@ -195,25 +192,16 @@ function columnarizeRecords(records) {
     }
   }
 
-  return {
-    records: shapedRecords,
-    shaped: true,
-  };
+  return shapedRecords;
 }
 
 function shapeRecords(records, shape) {
-  if (shape === undefined) {
-    return { records, shaped: false };
-  }
-
-  if (shape === 'columnar') {
-    return columnarizeRecords(records);
-  }
-
+  if (shape === undefined) return records;
+  if (shape === 'columnar') return columnarizeRecords(records);
   return expandRecords(records, shape);
 }
 
-function tabularizeRecords(records, columns, { shaped = false } = {}) {
+function tabularizeRecords(records, columns) {
   if (columns !== undefined) {
     if (!Array.isArray(columns) || columns.length === 0) {
       fail('INVALID_ARGUMENT', 'columns must be a non-empty list of JSON Pointers');
@@ -232,22 +220,6 @@ function tabularizeRecords(records, columns, { shaped = false } = {}) {
       headers: parsed.map(({ pointer }) => pointer),
       rows: records.map((record) => parsed.map(({ tokens }) => cellValue(resolvePointer(record, tokens)))),
     };
-  }
-
-  if (!shaped) {
-    const hasObject = records.some(isObject);
-    const hasNonObject = records.some((record) => !isObject(record));
-
-    if (hasObject && hasNonObject) {
-      fail('HETEROGENEOUS_RECORDS', 'automatic projection cannot mix object and non-object records');
-    }
-
-    if (records.length > 0 && !hasObject) {
-      return {
-        headers: ['@value'],
-        rows: records.map((record) => [cellValue(record)]),
-      };
-    }
   }
 
   const flattened = records.map((record) => {
@@ -280,7 +252,7 @@ export function jsonTextToTable(body, { query, columns, shape } = {}) {
   }
 
   const selection = selectRecords(document, query);
-  const shaping = shapeRecords(selection, shape);
+  const records = shapeRecords(selection, shape);
 
-  return tabularizeRecords(shaping.records, columns, shaping);
+  return tabularizeRecords(records, columns);
 }

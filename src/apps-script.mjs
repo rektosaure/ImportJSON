@@ -22,8 +22,10 @@ function singleCell(value, name) {
   fail('INVALID_ARGUMENT', `${name} must be a single cell or literal value`);
 }
 
-function hasOptionalValue(value) {
-  return value !== undefined && value !== '';
+function optionalSingleCell(value, name) {
+  if (value === undefined) return undefined;
+  const normalized = singleCell(value, name);
+  return normalized === '' ? undefined : normalized;
 }
 
 function normalizeUrl(value) {
@@ -49,7 +51,7 @@ function normalizeUrl(value) {
 }
 
 function normalizeColumns(value) {
-  if (value === undefined) return undefined;
+  if (value === undefined || value === '') return undefined;
   if (typeof value === 'string') return [value];
 
   if (!Array.isArray(value) || value.length === 0 || !value.every(Array.isArray)) {
@@ -65,6 +67,8 @@ function normalizeColumns(value) {
   if (value.length === 1) columns = value[0];
   else if (width === 1) columns = value.map((row) => row[0]);
   else fail('INVALID_ARGUMENT', 'columns range must be horizontal or vertical');
+
+  if (columns.length === 1 && columns[0] === '') return undefined;
 
   if (columns.some((column) => typeof column !== 'string' || column.length === 0)) {
     fail('INVALID_ARGUMENT', 'columns must contain non-empty JSON Pointers');
@@ -106,17 +110,10 @@ function renderTable(table) {
 }
 
 export function runImportJSON(url, query, columns, shape, refreshKey) {
-  const queryIsOmitted = query === undefined
-    || (query === '' && [columns, shape, refreshKey].some(hasOptionalValue));
-  const columnsAreOmitted = columns === undefined
-    || (columns === '' && [shape, refreshKey].some(hasOptionalValue));
-  const shapeIsOmitted = shape === undefined
-    || (shape === '' && hasOptionalValue(refreshKey));
-
   const normalizedUrl = normalizeUrl(url);
-  const normalizedQuery = queryIsOmitted ? undefined : singleCell(query, 'query');
-  const normalizedShape = shapeIsOmitted ? undefined : singleCell(shape, 'shape');
-  const normalizedColumns = normalizeColumns(columnsAreOmitted ? undefined : columns);
+  const normalizedQuery = optionalSingleCell(query, 'query');
+  const normalizedColumns = normalizeColumns(columns);
+  const normalizedShape = optionalSingleCell(shape, 'shape');
 
   return renderTable(jsonTextToTable(fetchBody(normalizedUrl), {
     query: normalizedQuery,
