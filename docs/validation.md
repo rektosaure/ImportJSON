@@ -96,7 +96,13 @@ Automated qualification MUST verify:
 - operation of the bundled qualification target without Node.js runtime globals or `TextEncoder`;
 - lazy traversal and the visit/deadline hooks exercised by the qualification probes.
 
-Before a public release, the exact candidate production bundle SHOULD also be smoke-tested in Google Apps Script V8 to confirm that it loads and exposes the Library function in the target runtime. The smoke-test result should identify the tested bundle revision or checksum so it cannot be confused with another build.
+## Live Google Sheets smoke
+
+Before a public release, the exact candidate production bundle and wrapper MUST pass the complete real-runtime matrix in [`smoke-tests.md`](smoke-tests.md) using Google Apps Script V8 and a real Google Sheet.
+
+The smoke result MUST identify the exact tested commit revision or candidate bundle checksum so it cannot be confused with another build. The suite includes the established integration baseline plus explicit coverage for `columnar`, non-array root semantics, explicit `$`, literal pointer projection, null/missing rendering, deterministic structured-value serialization, `HTTP_ERROR`, and `INVALID_JSON`.
+
+After publication, the same matrix MUST be repeated against the immutable Apps Script Library version associated with the release.
 
 ## Distribution
 
@@ -107,7 +113,7 @@ Release validation MUST verify that `dist/ImportJSON.gs`:
 - delegates to `ImportJSONLib.IMPORTJSON(...)`;
 - remains a small wrapper rather than embedding the JSONPath engine or production bundle.
 
-The published Library version and the wrapper MUST be tested together from a Google Sheet before release.
+The candidate and immutable Library versions MUST be tested with the wrapper through the live Google Sheets smoke suite.
 
 ## Documentation acceptance
 
