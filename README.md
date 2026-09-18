@@ -59,7 +59,7 @@ Use files from a [GitHub release](https://github.com/rektosaure/ImportJSON/relea
 ### Apps Script Library — recommended
 
 1. Open the [latest release](https://github.com/rektosaure/ImportJSON/releases/latest).
-2. Open `release-manifest.json` and note `appsScript.scriptId` and `appsScript.version`.
+2. Note the Apps Script Library **Script ID** and **Version** shown in the release notes.
 3. In your spreadsheet, open **Extensions → Apps Script**.
 4. Add that immutable Library version and use the identifier `ImportJSONLib`.
 5. Copy `ImportJSON.gs` from the same release into the spreadsheet's Apps Script project.
