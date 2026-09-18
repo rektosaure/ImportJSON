@@ -65,19 +65,18 @@ jobs:
           TAG_NAME="v$VERSION"
           RELEASE_BRANCH="release/$TAG_NAME"
 
-          git checkout --detach "$DEV_SHA"
-          if ! git merge --no-commit --no-ff "$MAIN_SHA"; then
-            git merge --abort || true
+          DEV_TREE="$(git rev-parse "$DEV_SHA^{tree}")"
+          if ! MERGED_TREE="$(git merge-tree --write-tree "$DEV_SHA" "$MAIN_SHA")"; then
             echo "::error::current main does not merge cleanly into dev; synchronize main into dev before preparing a release"
             exit 1
           fi
 
-          if ! git diff --quiet HEAD -- || ! git diff --cached --quiet HEAD --; then
-            git merge --abort || true
+          if [ "$MERGED_TREE" != "$DEV_TREE" ]; then
             echo "::error::current main contains content not present in dev; merge the Synchronize dev pull request before preparing a release"
             exit 1
           fi
-          git merge --abort 2>/dev/null || true
+
+          git checkout --detach "$DEV_SHA"
 
           if git rev-parse "$TAG_NAME^{commit}" >/dev/null 2>&1; then
             echo "::error::$TAG_NAME already exists"

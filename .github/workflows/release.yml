@@ -6,6 +6,12 @@ on:
       - closed
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Initial SemVer version to publish, for example 1.0.0
+        required: true
+        type: string
 
 concurrency:
   group: publish-release
@@ -13,7 +19,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,38 +27,78 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       release_sha: ${{ steps.release.outputs.release_sha }}
+      bootstrap: ${{ steps.release.outputs.bootstrap }}
     steps:
       - name: Resolve release identity
         id: release
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          case "$PR_HEAD_REF" in
-            release/v*) VERSION="${PR_HEAD_REF#release/v}" ;;
+          case "$EVENT_NAME" in
+            pull_request)
+              case "$PR_HEAD_REF" in
+                release/v*) VERSION="${PR_HEAD_REF#release/v}" ;;
+                *)
+                  echo "::error::release pull request head must use release/vX.Y.Z"
+                  exit 1
+                  ;;
+              esac
+
+              test -n "$PR_MERGE_SHA" || {
+                echo "::error::merged release pull request has no merge commit SHA"
+                exit 1
+              }
+
+              RELEASE_SHA="$PR_MERGE_SHA"
+              RELEASE_HEAD_SHA="$PR_HEAD_SHA"
+              BOOTSTRAP=false
+              ;;
+            workflow_dispatch)
+              test "$GITHUB_REF_NAME" = "main" || {
+                echo "::error::initial release bootstrap must be run from main"
+                exit 1
+              }
+
+              VERSION="$INPUT_VERSION"
+              RELEASE_SHA="$GITHUB_SHA"
+              RELEASE_HEAD_SHA="$GITHUB_SHA"
+              BOOTSTRAP=true
+
+              EXISTING_RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=1" --jq '.[0].html_url // empty')"
+              test -z "$EXISTING_RELEASE" || {
+                echo "::error::initial release bootstrap is disabled because a GitHub release already exists: $EXISTING_RELEASE"
+                exit 1
+              }
+
+              EXISTING_VERSION_TAG="$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v" --jq '.[0].ref // empty')"
+              test -z "$EXISTING_VERSION_TAG" || {
+                echo "::error::initial release bootstrap is disabled because a version tag already exists: $EXISTING_VERSION_TAG"
+                exit 1
+              }
+              ;;
             *)
-              echo "::error::release pull request head must use release/vX.Y.Z"
+              echo "::error::unsupported release event: $EVENT_NAME"
               exit 1
               ;;
           esac
 
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::release branch version must use X.Y.Z SemVer form"
-            exit 1
-          }
-
-          test -n "$PR_MERGE_SHA" || {
-            echo "::error::merged release pull request has no merge commit SHA"
+            echo "::error::release version must use X.Y.Z SemVer form"
             exit 1
           }
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag_name=v$VERSION" >> "$GITHUB_OUTPUT"
-          echo "release_sha=$PR_MERGE_SHA" >> "$GITHUB_OUTPUT"
-          echo "release_head_sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "release_head_sha=$RELEASE_HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "bootstrap=$BOOTSTRAP" >> "$GITHUB_OUTPUT"
 
       - name: Check out promoted release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,6 +117,7 @@ jobs:
 
       - name: Verify promoted release commit
         env:
+          BOOTSTRAP: ${{ steps.release.outputs.bootstrap }}
           RELEASE_HEAD_SHA: ${{ steps.release.outputs.release_head_sha }}
           RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
           TAG_NAME: ${{ steps.release.outputs.tag_name }}
@@ -88,16 +135,18 @@ jobs:
             exit 1
           }
 
-          PARENT_COUNT="$(git rev-list --parents -n 1 "$RELEASE_SHA" | awk '{print NF - 1}')"
-          test "$PARENT_COUNT" -ge 2 || {
-            echo "::error::release pull request must be merged with Create a merge commit"
-            exit 1
-          }
+          if [ "$BOOTSTRAP" != "true" ]; then
+            PARENT_COUNT="$(git rev-list --parents -n 1 "$RELEASE_SHA" | awk '{print NF - 1}')"
+            test "$PARENT_COUNT" -ge 2 || {
+              echo "::error::release pull request must be merged with Create a merge commit"
+              exit 1
+            }
 
-          git merge-base --is-ancestor "$RELEASE_HEAD_SHA" "$RELEASE_SHA" || {
-            echo "::error::release merge commit does not contain the frozen release candidate"
-            exit 1
-          }
+            git merge-base --is-ancestor "$RELEASE_HEAD_SHA" "$RELEASE_SHA" || {
+              echo "::error::release merge commit does not contain the frozen release candidate"
+              exit 1
+            }
+          fi
 
           if git rev-parse "$TAG_NAME^{commit}" >/dev/null 2>&1; then
             TAG_SHA="$(git rev-parse "$TAG_NAME^{commit}")"
