@@ -284,14 +284,14 @@ jobs:
           APPS_SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
           APPS_SCRIPT_VERSION: ${{ steps.apps-script.outputs.version_number }}
         run: |
-          cat >> release-notes.md <<EOF
-
-          ## Apps Script Library
-
-          - Script ID: `$APPS_SCRIPT_ID`
-          - Version: `$APPS_SCRIPT_VERSION`
-          - Identifier: `ImportJSONLib`
-          EOF
+          {
+            echo
+            echo "## Apps Script Library"
+            echo
+            echo "- Script ID: `$APPS_SCRIPT_ID`"
+            echo "- Version: `$APPS_SCRIPT_VERSION`"
+            echo "- Identifier: `ImportJSONLib`"
+          } >> release-notes.md
 
       - name: Create GitHub Release
         env:
