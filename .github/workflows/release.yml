@@ -202,7 +202,14 @@ jobs:
           TAG_NAME: ${{ needs.build.outputs.tag_name }}
         run: |
           set -euo pipefail
-          PREVIOUS_TAG="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name' 2>/dev/null || true)"
+          PREVIOUS_TAG=""
+          if LATEST_TAG="$(
+            gh api "repos/$GITHUB_REPOSITORY/releases/latest" \
+              --jq '.tag_name' \
+              2>/dev/null
+          )"; then
+            PREVIOUS_TAG="$LATEST_TAG"
+          fi
 
           if [ -n "$PREVIOUS_TAG" ]; then
             git merge-base --is-ancestor "$PREVIOUS_TAG" "$RELEASE_SHA" || {
