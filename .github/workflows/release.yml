@@ -165,7 +165,6 @@ jobs:
           mkdir release-assets
           cp build/importjson-library.gs release-assets/importjson-library.gs
           cp build/appsscript.json release-assets/appsscript.json
-          cp build/THIRD_PARTY_LICENSES.txt release-assets/THIRD_PARTY_LICENSES.txt
           cp dist/ImportJSON.gs release-assets/ImportJSON.gs
 
       - name: Upload release assets
@@ -280,43 +279,19 @@ jobs:
 
           echo "version_number=$APPS_SCRIPT_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Generate release manifest
+      - name: Add Apps Script installation details
         env:
           APPS_SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
           APPS_SCRIPT_VERSION: ${{ steps.apps-script.outputs.version_number }}
-          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
-          RELEASE_VERSION: ${{ needs.build.outputs.version }}
-          TAG_NAME: ${{ needs.build.outputs.tag_name }}
         run: |
-          set -euo pipefail
-          BUNDLE_SHA256="$(sha256sum release-assets/importjson-library.gs | awk '{print $1}')"
-          WRAPPER_SHA256="$(sha256sum release-assets/ImportJSON.gs | awk '{print $1}')"
-          LICENSES_SHA256="$(sha256sum release-assets/THIRD_PARTY_LICENSES.txt | awk '{print $1}')"
-          CLASP_VERSION="$(node -p 'require("./node_modules/@google/clasp/package.json").version')"
+          cat >> release-notes.md <<EOF
 
-          node -e '
-            const fs = require("fs");
-            const [tag, version, gitCommit, scriptId, appsScriptVersion, bundleSha256, wrapperSha256, licensesSha256, claspVersion] = process.argv.slice(1);
-            const manifest = {
-              release: tag,
-              version,
-              gitCommit,
-              appsScript: {
-                scriptId,
-                version: Number(appsScriptVersion),
-              },
-              artifacts: {
-                "importjson-library.gs": { sha256: bundleSha256 },
-                "ImportJSON.gs": { sha256: wrapperSha256 },
-                "THIRD_PARTY_LICENSES.txt": { sha256: licensesSha256 },
-              },
-              publisher: {
-                tool: "@google/clasp",
-                version: claspVersion,
-              },
-            };
-            fs.writeFileSync("release-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
-          ' "$TAG_NAME" "$RELEASE_VERSION" "$RELEASE_SHA" "$APPS_SCRIPT_ID" "$APPS_SCRIPT_VERSION" "$BUNDLE_SHA256" "$WRAPPER_SHA256" "$LICENSES_SHA256" "$CLASP_VERSION"
+          ## Apps Script Library
+
+          - Script ID: `$APPS_SCRIPT_ID`
+          - Version: `$APPS_SCRIPT_VERSION`
+          - Identifier: `ImportJSONLib`
+          EOF
 
       - name: Create GitHub Release
         env:
@@ -328,8 +303,6 @@ jobs:
           ASSETS=(
             release-assets/importjson-library.gs
             release-assets/ImportJSON.gs
-            release-assets/THIRD_PARTY_LICENSES.txt
-            release-manifest.json
           )
 
           if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
