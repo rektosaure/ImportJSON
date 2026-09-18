@@ -87,21 +87,19 @@ Pull request titles should therefore describe user-visible changes clearly when 
 
 ## Release assets
 
-A published release contains:
+A published release uploads only the two installable files:
 
 ```text
 importjson-library.gs
 ImportJSON.gs
-THIRD_PARTY_LICENSES.txt
-release-manifest.json
 ```
 
 - `importjson-library.gs` is the complete bundle used for manual installation and Apps Script Library publication.
 - `ImportJSON.gs` is the wrapper used with the Apps Script Library installation.
-- `THIRD_PARTY_LICENSES.txt` contains bundled dependency notices.
-- `release-manifest.json` identifies the source revision, Apps Script Library version, and hashes of installable release artifacts.
 
-The internal Apps Script project manifest used during publication is a build input, not a public release asset.
+The release notes record the immutable Apps Script Library Script ID and version. GitHub supplies source archives and platform-generated release integrity metadata separately.
+
+The internal Apps Script project manifest and generated dependency notices are build outputs, not public release assets.
 
 Do not encode the Apps Script integer version into product SemVer and do not maintain a second handwritten version table.
 
