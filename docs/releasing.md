@@ -45,6 +45,14 @@ When **Synchronize dev** opens a `sync/main-*` pull request, approve its workflo
 
 If the synchronization merge conflicts, the workflow fails instead of modifying `dev`. Resolve the integration on a normal branch, open a pull request into `dev`, and preserve the relevant `main` lineage with a merge commit before preparing another release.
 
+## First release bootstrap
+
+The first published release is a one-time exception because a repository may already have its initial source promoted to `main` before the release workflow is introduced.
+
+If no GitHub release and no version tag matching `v*` exists yet, open **Actions → Publish release**, keep the workflow source on `main`, enter the initial SemVer version, and run it manually. The workflow validates and builds the exact current `main` commit, publishes the Apps Script version, and creates the matching GitHub Release.
+
+This bootstrap path is deliberately self-disabling: once any GitHub release or `v*` tag exists, manual publication through `workflow_dispatch` is refused. All later releases must use the normal frozen `dev` candidate and release pull-request flow below.
+
 ## Prepare
 
 Open **Actions → Prepare release**, keep the workflow source on `main`, enter the version, and run it.
