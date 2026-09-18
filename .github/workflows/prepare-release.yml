@@ -1,0 +1,259 @@
+name: Prepare release
+
+run-name: Prepare v${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer version to prepare, for example 1.5.0
+        required: true
+        type: string
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.candidate.outputs.version }}
+      tag_name: ${{ steps.candidate.outputs.tag_name }}
+      release_branch: ${{ steps.candidate.outputs.release_branch }}
+      main_sha: ${{ steps.candidate.outputs.main_sha }}
+      dev_sha: ${{ steps.candidate.outputs.dev_sha }}
+    steps:
+      - name: Require main workflow source
+        run: |
+          test "$GITHUB_REF_NAME" = "main" || {
+            echo "::error::Prepare release must be run from main"
+            exit 1
+          }
+
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Resolve release candidate
+        id: candidate
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::version must use X.Y.Z SemVer form"
+            exit 1
+          }
+
+          git fetch --force --tags origin \
+            refs/heads/main:refs/remotes/origin/main \
+            refs/heads/dev:refs/remotes/origin/dev
+
+          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          DEV_SHA="$(git rev-parse refs/remotes/origin/dev)"
+          TAG_NAME="v$VERSION"
+          RELEASE_BRANCH="release/$TAG_NAME"
+
+          git checkout --detach "$DEV_SHA"
+          if ! git merge --no-commit --no-ff "$MAIN_SHA"; then
+            git merge --abort || true
+            echo "::error::current main does not merge cleanly into dev; synchronize main into dev before preparing a release"
+            exit 1
+          fi
+
+          if ! git diff --quiet HEAD -- || ! git diff --cached --quiet HEAD --; then
+            git merge --abort || true
+            echo "::error::current main contains content not present in dev; merge the Synchronize dev pull request before preparing a release"
+            exit 1
+          fi
+          git merge --abort 2>/dev/null || true
+
+          if git rev-parse "$TAG_NAME^{commit}" >/dev/null 2>&1; then
+            echo "::error::$TAG_NAME already exists"
+            exit 1
+          fi
+
+          EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "refs/heads/$RELEASE_BRANCH" | awk '{print $1}')"
+          if [ -n "$EXISTING_BRANCH_SHA" ] && [ "$EXISTING_BRANCH_SHA" != "$DEV_SHA" ]; then
+            echo "::error::$RELEASE_BRANCH already exists at $EXISTING_BRANCH_SHA, not $DEV_SHA"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
+          echo "dev_sha=$DEV_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate release candidate
+        run: |
+          npm audit --audit-level=high
+          npm test
+
+  open-pr:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate frozen refs
+        id: candidate
+        env:
+          DEV_SHA: ${{ needs.validate.outputs.dev_sha }}
+          MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+          RELEASE_BRANCH: ${{ needs.validate.outputs.release_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin \
+            refs/heads/main:refs/remotes/origin/main \
+            refs/heads/dev:refs/remotes/origin/dev
+
+          CURRENT_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          CURRENT_DEV_SHA="$(git rev-parse refs/remotes/origin/dev)"
+
+          test "$CURRENT_MAIN_SHA" = "$MAIN_SHA" || {
+            echo "::error::main moved during validation; run Prepare release again"
+            exit 1
+          }
+
+          test "$CURRENT_DEV_SHA" = "$DEV_SHA" || {
+            echo "::error::dev moved during validation; run Prepare release again to freeze and validate the new state"
+            exit 1
+          }
+
+          EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "refs/heads/$RELEASE_BRANCH" | awk '{print $1}')"
+          if [ -n "$EXISTING_BRANCH_SHA" ] && [ "$EXISTING_BRANCH_SHA" != "$DEV_SHA" ]; then
+            echo "::error::$RELEASE_BRANCH already exists at $EXISTING_BRANCH_SHA, not $DEV_SHA"
+            exit 1
+          fi
+
+          echo "existing_branch_sha=$EXISTING_BRANCH_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse parallel release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ needs.validate.outputs.release_branch }}
+        run: |
+          set -euo pipefail
+          OTHER_RELEASE_PR="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --state open \
+            --json headRefName,url \
+            --jq ".[] | select(.headRefName | startswith(\"release/v\")) | select(.headRefName != \"$RELEASE_BRANCH\") | .url" \
+            | head -n 1)"
+
+          test -z "$OTHER_RELEASE_PR" || {
+            echo "::error::another release candidate is already open: $OTHER_RELEASE_PR"
+            exit 1
+          }
+
+      - name: Build release pull request body
+        env:
+          DEV_SHA: ${{ needs.validate.outputs.dev_sha }}
+          MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+
+          CHANGES="$(git log --reverse --no-merges --format='- %s' "$MAIN_SHA..$DEV_SHA")"
+          test -n "$CHANGES" || {
+            echo "::error::dev contains no changes to promote over main"
+            exit 1
+          }
+
+          {
+            echo "## Release candidate"
+            echo
+            echo "Promote the frozen \`dev\` snapshot below to \`main\` and publish **$TAG_NAME**."
+            echo
+            echo "- Source: \`dev@$DEV_SHA\`"
+            echo "- Base: \`main@$MAIN_SHA\`"
+            echo
+            echo "## Included changes"
+            echo
+            printf '%s\n' "$CHANGES"
+            echo
+            echo "## Validation"
+            echo
+            echo "- [x] \`npm audit --audit-level=high\`"
+            echo "- [x] \`npm test\`"
+            echo "- [ ] Required pull-request workflows approved and green"
+            echo "- [ ] Merge with **Create a merge commit**"
+            echo
+            echo "Merging this pull request is the manual authorization to publish $TAG_NAME."
+          } > release-pr.md
+
+      - name: Create frozen release branch
+        if: steps.candidate.outputs.existing_branch_sha == ''
+        env:
+          DEV_SHA: ${{ needs.validate.outputs.dev_sha }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ needs.validate.outputs.release_branch }}
+        run: |
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/heads/$RELEASE_BRANCH" \
+            -f sha="$DEV_SHA"
+
+      - name: Open or reuse release pull request
+        id: pull-request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ needs.validate.outputs.release_branch }}
+          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          PR_URL="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$RELEASE_BRANCH" \
+            --state open \
+            --json url \
+            --jq '.[0].url')"
+
+          if [ -z "$PR_URL" ]; then
+            PR_URL="$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$RELEASE_BRANCH" \
+              --title "release: $TAG_NAME" \
+              --body-file release-pr.md)"
+          fi
+
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        env:
+          DEV_SHA: ${{ needs.validate.outputs.dev_sha }}
+          PR_URL: ${{ steps.pull-request.outputs.url }}
+          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
+        run: |
+          {
+            echo "### Prepared $TAG_NAME"
+            echo
+            echo "- Frozen source: \`$DEV_SHA\`"
+            echo "- Pull request: $PR_URL"
+            echo "- Approve the pull-request workflow runs, review the candidate, then merge it with **Create a merge commit**."
+          } >> "$GITHUB_STEP_SUMMARY"
