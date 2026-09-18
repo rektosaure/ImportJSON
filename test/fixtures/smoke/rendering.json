@@ -1,0 +1,4 @@
+[
+  {"id":1,"nullable":null,"structured":{"z":1,"a":[2,1]}},
+  {"id":2,"structured":{"b":2,"a":1}}
+]
