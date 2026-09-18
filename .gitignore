@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+build/
+dist/*
+!dist/ImportJSON.gs
+coverage/
+
+# Local environment
+.env
+.env.*
+!.env.example
+.clasp.json
+.clasprc.json
+
+# Logs
+*.log
+
+# OS metadata
+.DS_Store

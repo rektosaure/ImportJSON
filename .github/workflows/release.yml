@@ -1,0 +1,323 @@
+name: Publish release
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      release_sha: ${{ steps.release.outputs.release_sha }}
+    steps:
+      - name: Resolve release identity
+        id: release
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          case "$PR_HEAD_REF" in
+            release/v*) VERSION="${PR_HEAD_REF#release/v}" ;;
+            *)
+              echo "::error::release pull request head must use release/vX.Y.Z"
+              exit 1
+              ;;
+          esac
+
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::release branch version must use X.Y.Z SemVer form"
+            exit 1
+          }
+
+          test -n "$PR_MERGE_SHA" || {
+            echo "::error::merged release pull request has no merge commit SHA"
+            exit 1
+          }
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$PR_MERGE_SHA" >> "$GITHUB_OUTPUT"
+          echo "release_head_sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Check out promoted release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release.outputs.release_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify promoted release commit
+        env:
+          RELEASE_HEAD_SHA: ${{ steps.release.outputs.release_head_sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA" || {
+            echo "::error::checked-out commit does not match release merge commit"
+            exit 1
+          }
+
+          git fetch --force origin refs/heads/main:refs/remotes/origin/main --tags
+          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          test "$MAIN_SHA" = "$RELEASE_SHA" || {
+            echo "::error::main advanced to $MAIN_SHA before publication; refusing to publish stale $RELEASE_SHA"
+            exit 1
+          }
+
+          PARENT_COUNT="$(git rev-list --parents -n 1 "$RELEASE_SHA" | awk '{print NF - 1}')"
+          test "$PARENT_COUNT" -ge 2 || {
+            echo "::error::release pull request must be merged with Create a merge commit"
+            exit 1
+          }
+
+          git merge-base --is-ancestor "$RELEASE_HEAD_SHA" "$RELEASE_SHA" || {
+            echo "::error::release merge commit does not contain the frozen release candidate"
+            exit 1
+          }
+
+          if git rev-parse "$TAG_NAME^{commit}" >/dev/null 2>&1; then
+            TAG_SHA="$(git rev-parse "$TAG_NAME^{commit}")"
+            test "$TAG_SHA" = "$RELEASE_SHA" || {
+              echo "::error::$TAG_NAME already points to $TAG_SHA, not $RELEASE_SHA"
+              exit 1
+            }
+          fi
+
+      - name: Test and build release
+        run: npm test
+
+      - name: Stage release assets
+        run: |
+          set -euo pipefail
+          rm -rf release-assets
+          mkdir release-assets
+          cp build/importjson-library.gs release-assets/importjson-library.gs
+          cp build/appsscript.json release-assets/appsscript.json
+          cp build/THIRD_PARTY_LICENSES.txt release-assets/THIRD_PARTY_LICENSES.txt
+          cp dist/ImportJSON.gs release-assets/ImportJSON.gs
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out promoted release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.release_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          PREVIOUS_TAG="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name' 2>/dev/null || true)"
+
+          if [ -n "$PREVIOUS_TAG" ]; then
+            git merge-base --is-ancestor "$PREVIOUS_TAG" "$RELEASE_SHA" || {
+              echo "::error::latest published release $PREVIOUS_TAG is not an ancestor of $RELEASE_SHA"
+              exit 1
+            }
+            git log --reverse --no-merges --format='%s' "$PREVIOUS_TAG..$RELEASE_SHA" > release-commits.txt
+            gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$TAG_NAME" \
+              -f target_commitish="$RELEASE_SHA" \
+              -f previous_tag_name="$PREVIOUS_TAG" \
+              --jq '.body' > github-release-notes.md
+          else
+            git log --reverse --no-merges --format='%s' "$RELEASE_SHA" > release-commits.txt
+            gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$TAG_NAME" \
+              -f target_commitish="$RELEASE_SHA" \
+              --jq '.body' > github-release-notes.md
+          fi
+
+          node scripts/release-notes.mjs \
+            release-commits.txt \
+            github-release-notes.md \
+            release-notes.md \
+            "$GITHUB_REPOSITORY"
+
+      - name: Install publisher dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Prepare Apps Script project
+        env:
+          APPS_SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "${APPS_SCRIPT_ID:-}" || { echo "::error::Repository variable APPS_SCRIPT_ID is not configured"; exit 1; }
+          test -n "${CLASPRC_JSON:-}" || { echo "::error::Repository secret CLASPRC_JSON is not configured"; exit 1; }
+
+          mkdir -p apps-script "$HOME"
+          cp release-assets/importjson-library.gs apps-script/importjson-library.gs
+          cp release-assets/appsscript.json apps-script/appsscript.json
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          node -e 'const fs=require("fs"); fs.writeFileSync(".clasp.json", JSON.stringify({scriptId: process.argv[1], rootDir: "apps-script"}, null, 2) + "\n")' "$APPS_SCRIPT_ID"
+
+      - name: Publish immutable Apps Script version
+        id: apps-script
+        env:
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          CLASP="./node_modules/.bin/clasp"
+          DESCRIPTION="ImportJSON ${TAG_NAME} (${RELEASE_SHA:0:12})"
+
+          VERSIONS_JSON="$($CLASP --json list-versions)"
+          APPS_SCRIPT_VERSION="$(node -e 'const versions=JSON.parse(process.argv[1]); const description=process.argv[2]; const match=versions.find((version) => version.description === description); if (match) process.stdout.write(String(match.versionNumber));' "$VERSIONS_JSON" "$DESCRIPTION")"
+
+          if [ -z "$APPS_SCRIPT_VERSION" ]; then
+            $CLASP push --force
+            VERSION_JSON="$($CLASP --json create-version "$DESCRIPTION")"
+            APPS_SCRIPT_VERSION="$(node -e 'const value=JSON.parse(process.argv[1]).versionNumber; if (!Number.isInteger(value)) process.exit(1); process.stdout.write(String(value));' "$VERSION_JSON")"
+          fi
+
+          echo "version_number=$APPS_SCRIPT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release manifest
+        env:
+          APPS_SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
+          APPS_SCRIPT_VERSION: ${{ steps.apps-script.outputs.version_number }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          BUNDLE_SHA256="$(sha256sum release-assets/importjson-library.gs | awk '{print $1}')"
+          WRAPPER_SHA256="$(sha256sum release-assets/ImportJSON.gs | awk '{print $1}')"
+          LICENSES_SHA256="$(sha256sum release-assets/THIRD_PARTY_LICENSES.txt | awk '{print $1}')"
+          CLASP_VERSION="$(node -p 'require("./node_modules/@google/clasp/package.json").version')"
+
+          node -e '
+            const fs = require("fs");
+            const [tag, version, gitCommit, scriptId, appsScriptVersion, bundleSha256, wrapperSha256, licensesSha256, claspVersion] = process.argv.slice(1);
+            const manifest = {
+              release: tag,
+              version,
+              gitCommit,
+              appsScript: {
+                scriptId,
+                version: Number(appsScriptVersion),
+              },
+              artifacts: {
+                "importjson-library.gs": { sha256: bundleSha256 },
+                "ImportJSON.gs": { sha256: wrapperSha256 },
+                "THIRD_PARTY_LICENSES.txt": { sha256: licensesSha256 },
+              },
+              publisher: {
+                tool: "@google/clasp",
+                version: claspVersion,
+              },
+            };
+            fs.writeFileSync("release-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+          ' "$TAG_NAME" "$RELEASE_VERSION" "$RELEASE_SHA" "$APPS_SCRIPT_ID" "$APPS_SCRIPT_VERSION" "$BUNDLE_SHA256" "$WRAPPER_SHA256" "$LICENSES_SHA256" "$CLASP_VERSION"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          ASSETS=(
+            release-assets/importjson-library.gs
+            release-assets/ImportJSON.gs
+            release-assets/THIRD_PARTY_LICENSES.txt
+            release-manifest.json
+          )
+
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            IS_DRAFT="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')"
+            if [ "$IS_DRAFT" != "true" ]; then
+              echo "::error::$TAG_NAME is already published; published releases are write-once"
+              exit 1
+            fi
+
+            gh release upload "$TAG_NAME" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+            gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+            exit 0
+          fi
+
+          if git rev-parse "$TAG_NAME^{commit}" >/dev/null 2>&1; then
+            gh release create "$TAG_NAME" "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --draft \
+              --title "$TAG_NAME" \
+              --notes-file release-notes.md
+          else
+            gh release create "$TAG_NAME" "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$RELEASE_SHA" \
+              --draft \
+              --title "$TAG_NAME" \
+              --notes-file release-notes.md
+          fi
+
+          gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+
+      - name: Summary
+        env:
+          APPS_SCRIPT_VERSION: ${{ steps.apps-script.outputs.version_number }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+        run: |
+          {
+            echo "### Published $TAG_NAME"
+            echo
+            echo "- Git commit: \`$RELEASE_SHA\`"
+            echo "- Apps Script version: \`$APPS_SCRIPT_VERSION\`"
+          } >> "$GITHUB_STEP_SUMMARY"
