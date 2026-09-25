@@ -21,6 +21,7 @@ ImportJSON MUST NOT implicitly:
 - convert strings to dates;
 - truncate structured values;
 - create a Cartesian product;
+- merge selected records;
 - detect an object-of-arrays table;
 - change the meaning of an explicit JSONPath expression.
 
@@ -193,7 +194,8 @@ Strings MUST be preserved without implicit trimming or date conversion. Booleans
 
 After omission normalization, a supplied `shape` MUST resolve to one non-empty string containing exactly one of:
 
-- `columnar`; or
+- `columnar`;
+- `merge`; or
 - a non-empty RFC 6901 JSON Pointer relative to each selected record.
 
 Any other form produces `INVALID_ARGUMENT`.
@@ -216,7 +218,9 @@ No nested array is expanded a second time. There is no implicit second shaping o
 
 For automatic projection after pointer shaping, the schema is the deterministic union of columns contributed by the produced logical rows. If shaping produces zero rows, automatic projection has no schema. Use explicit `columns` when headers must remain present without data rows.
 
-## 11. `columnar` shaping
+## 11. Named shaping modes
+
+### 11.1 `columnar`
 
 `columnar` explicitly transforms an object-of-arrays representation into row-oriented logical records.
 
@@ -247,6 +251,18 @@ Only direct array properties of the selected object participate in `columnar`. A
 - apply a second implicit shaping operation.
 
 Automatic projection derives columns only from produced logical rows. If matching direct arrays are empty and therefore produce no rows, automatic projection has no schema.
+
+### 11.2 `merge`
+
+`merge` explicitly combines selected object records into one logical record.
+
+- an empty selection produces zero logical rows;
+- every selected record MUST be an object, otherwise the invocation produces `INVALID_MERGE_TARGET`;
+- one or more selected records produce exactly one logical row containing their direct properties;
+- direct property names MUST be unique across all selected records, otherwise the invocation produces `MERGE_CONFLICT`, even when the colliding values are equal;
+- direct property values are copied unchanged, so nested objects and arrays are not recursively merged.
+
+Normal projection and flattening apply after the merged logical row is constructed. `merge` MUST NOT be activated heuristically and MUST NOT apply a second shaping operation.
 
 ## 12. `cache`
 
@@ -305,6 +321,8 @@ INVALID_JSONPATH
 INVALID_EXPANSION_TARGET
 INVALID_COLUMNAR_TARGET
 COLUMN_LENGTH_MISMATCH
+INVALID_MERGE_TARGET
+MERGE_CONFLICT
 LIMIT_EXCEEDED
 ```
 
@@ -313,6 +331,8 @@ LIMIT_EXCEEDED
 `INVALID_URL` includes an otherwise valid `http:` URL when `authorization` is supplied, because authenticated requests require HTTPS.
 
 `INVALID_COLUMNAR_TARGET` means that `columnar` received a selected record that is not an object or has no direct array property. `COLUMN_LENGTH_MISMATCH` means sibling direct arrays in one selected `columnar` record have unequal lengths.
+
+`INVALID_MERGE_TARGET` means that `merge` received at least one selected record that is not an object. `MERGE_CONFLICT` means two selected records contain the same direct property name and the merge would otherwise overwrite data.
 
 `LIMIT_EXCEEDED` means an ImportJSON resource limit defined in Section 15 was exceeded. ImportJSON MUST fail rather than silently truncate the response, selection, rows, columns, or rendered table.
 
