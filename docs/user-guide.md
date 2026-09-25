@@ -68,7 +68,7 @@ Typical formulas:
 =IMPORTJSON(A1, "$.users[*]", D1:F1)
 =IMPORTJSON(A1, , , "/items")
 =IMPORTJSON(A1, , , "columnar")
-=IMPORTJSON(A1, "$[\'profile\',\'details\']", , "merge")
+=IMPORTJSON(A1, "$['profile','details']", , "merge")
 =IMPORTJSON(A1, , , , "refresh")
 =IMPORTJSON(A1, , , , "off")
 =IMPORTJSON(A1, , , , B1)
