@@ -21,7 +21,7 @@ ImportJSON MUST NOT implicitly:
 - convert strings to dates;
 - truncate structured values;
 - create a Cartesian product;
-- merge selected records;
+- combine selected records;
 - detect an object-of-arrays table;
 - change the meaning of an explicit JSONPath expression.
 
@@ -195,7 +195,7 @@ Strings MUST be preserved without implicit trimming or date conversion. Booleans
 After omission normalization, a supplied `shape` MUST resolve to one non-empty string containing exactly one of:
 
 - `columnar`;
-- `merge`; or
+- `preserve`; or
 - a non-empty RFC 6901 JSON Pointer relative to each selected record.
 
 Any other form produces `INVALID_ARGUMENT`.
@@ -252,17 +252,20 @@ Only direct array properties of the selected object participate in `columnar`. A
 
 Automatic projection derives columns only from produced logical rows. If matching direct arrays are empty and therefore produce no rows, automatic projection has no schema.
 
-### 11.2 `merge`
+### 11.2 `preserve`
 
-`merge` explicitly combines selected object records into one logical record.
+`preserve` explicitly combines selected sibling object members into one logical record while retaining each selected member name.
 
 - an empty selection produces zero logical rows;
-- every selected record MUST be an object, otherwise the invocation produces `INVALID_MERGE_TARGET`;
-- one or more selected records produce exactly one logical row containing their direct properties;
-- direct property names MUST be unique across all selected records, otherwise the invocation produces `MERGE_CONFLICT`, even when the colliding values are equal;
-- direct property values are copied unchanged, so nested objects and arrays are not recursively merged.
+- every selected node MUST be a named member of an object, otherwise the invocation produces `INVALID_PRESERVE_TARGET`;
+- all selected nodes MUST have the same parent location, otherwise the invocation produces `INVALID_PRESERVE_TARGET`;
+- selected member names MUST be unique, otherwise the invocation produces `PRESERVE_CONFLICT`;
+- one or more selected members produce exactly one logical row whose direct properties are the selected member names;
+- each selected member value is copied unchanged, so nested objects and arrays remain under that member name until normal projection and flattening.
 
-Normal projection and flattening apply after the merged logical row is constructed. `merge` MUST NOT be activated heuristically and MUST NOT apply a second shaping operation.
+The common parent path itself is not copied into the logical row. For example, selecting `$.company['profile','details']` produces a logical row with direct properties `profile` and `details`. Normal projection therefore exposes paths such as `/profile/cik` and `/details/cik`.
+
+`preserve` MUST NOT be activated heuristically and MUST NOT apply a second shaping operation.
 
 ## 12. `cache`
 
@@ -321,8 +324,8 @@ INVALID_JSONPATH
 INVALID_EXPANSION_TARGET
 INVALID_COLUMNAR_TARGET
 COLUMN_LENGTH_MISMATCH
-INVALID_MERGE_TARGET
-MERGE_CONFLICT
+INVALID_PRESERVE_TARGET
+PRESERVE_CONFLICT
 LIMIT_EXCEEDED
 ```
 
@@ -332,7 +335,7 @@ LIMIT_EXCEEDED
 
 `INVALID_COLUMNAR_TARGET` means that `columnar` received a selected record that is not an object or has no direct array property. `COLUMN_LENGTH_MISMATCH` means sibling direct arrays in one selected `columnar` record have unequal lengths.
 
-`INVALID_MERGE_TARGET` means that `merge` received at least one selected record that is not an object. `MERGE_CONFLICT` means two selected records contain the same direct property name and the merge would otherwise overwrite data.
+`INVALID_PRESERVE_TARGET` means that `preserve` received a selection that is not made exclusively of named members sharing one parent object. `PRESERVE_CONFLICT` means the same sibling member name appears more than once in the selection.
 
 `LIMIT_EXCEEDED` means an ImportJSON resource limit defined in Section 15 was exceeded. ImportJSON MUST fail rather than silently truncate the response, selection, rows, columns, or rendered table.
 
