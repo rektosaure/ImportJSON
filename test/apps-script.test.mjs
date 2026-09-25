@@ -483,6 +483,20 @@ test('origin freshness can shorten but not extend the 3600-second cache TTL', ()
   });
 });
 
+test('merge shape flows through the public adapter', () => {
+  withRuntime({ body: '{"profile":{"name":"Apple"},"details":{"symbol":"AAPL"}}' }, () => {
+    assert.deepEqual(runImportJSON(
+      'https://example.test/data.json',
+      "$['profile','details']",
+      undefined,
+      'merge',
+    ), [
+      ['/name', '/symbol'],
+      ['Apple', 'AAPL'],
+    ]);
+  });
+});
+
 test('columnar shape flows through the public adapter', () => {
   withRuntime({ body: '{"ticker":"AAPL","year":[2024,2025],"eps":[6.08,7.46]}' }, () => {
     assert.deepEqual(runImportJSON(

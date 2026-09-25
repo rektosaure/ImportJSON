@@ -54,7 +54,7 @@ Google Sheets
 | `url` | Absolute HTTP or HTTPS URL returning one JSON document. A literal string or one cell is accepted. Authenticated requests require HTTPS. |
 | `query` | Optional RFC 9535 JSONPath expression. A literal string or one cell is accepted. |
 | `columns` | Optional non-empty RFC 6901 JSON Pointer, or a horizontal/vertical range of pointers. |
-| `shape` | Optional non-empty JSON Pointer identifying one array to expand, or `"columnar"`. |
+| `shape` | Optional non-empty JSON Pointer identifying one array to expand, `"columnar"` for parallel arrays, or `"merge"` to combine selected objects. |
 | `cache` | Optional cache mode: blank or `"default"` for normal cache behavior, `"refresh"` for fresh data that updates the cache, or `"off"` to bypass cache reads and writes. |
 | `authorization` | Optional complete HTTP `Authorization` header value. A literal string or one cell is accepted. |
 
@@ -68,6 +68,7 @@ Typical formulas:
 =IMPORTJSON(A1, "$.users[*]", D1:F1)
 =IMPORTJSON(A1, , , "/items")
 =IMPORTJSON(A1, , , "columnar")
+=IMPORTJSON(A1, "$['profile','details']", , "merge")
 =IMPORTJSON(A1, , , , "refresh")
 =IMPORTJSON(A1, , , , "off")
 =IMPORTJSON(A1, , , , B1)
@@ -249,7 +250,7 @@ An array or object that reaches a cell is serialized as compact deterministic JS
 
 ## `shape`
 
-`shape` performs at most one explicit structural transformation after selection and before projection. It is either a non-empty JSON Pointer identifying one array or the literal `"columnar"`.
+`shape` performs at most one explicit structural transformation after selection and before projection. It is a non-empty JSON Pointer identifying one array, the literal `"columnar"`, or the literal `"merge"`.
 
 There is no automatic recursive array expansion or implicit Cartesian product.
 
@@ -287,6 +288,32 @@ A           1     y             20
 Properties outside the target subtree repeat for each produced row. Nested arrays are not expanded a second time.
 
 A missing or `null` target remains one row. An existing target that is not an array or `null` produces `INVALID_EXPANSION_TARGET`.
+
+### `merge`: combine selected objects
+
+Use `merge` when multiple selected objects are parts of one logical record. For example:
+
+```json
+{
+  "profile": {"name": "Apple"},
+  "details": {"symbol": "AAPL"}
+}
+```
+
+Select both objects and merge them before projection:
+
+```gs
+=IMPORTJSON(A1, "$['profile','details']", , "merge")
+```
+
+Result:
+
+```text
+/name    /symbol
+Apple    AAPL
+```
+
+Every selected record must be an object. The merge is shallow: nested objects and arrays remain unchanged until normal projection and flattening. Direct property names must be unique across the selected objects; a collision produces `MERGE_CONFLICT` instead of silently overwriting a value. An empty selection remains empty.
 
 ### `columnar`: object of parallel arrays
 
@@ -339,6 +366,8 @@ Google Apps Script and Google Sheets platform limits still apply independently a
 **Using JSONPath in `columns`.** `query` uses JSONPath such as `$.users[*]`; `columns` uses JSON Pointer such as `/name`.
 
 **Expecting arrays to expand automatically.** Arrays remain structured values unless `shape` explicitly expands one array or `columnar` uses direct arrays as the row axis.
+
+**Expecting selected objects to merge automatically.** Use `shape="merge"` explicitly, and ensure their direct property names do not collide.
 
 **Treating `$` as omitted query on an array root.** `$` selects the root array itself; omitted `query` selects its elements as records.
 

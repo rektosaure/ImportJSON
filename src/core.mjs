@@ -235,6 +235,29 @@ function expandRecords(records, shape) {
   return shapedRecords;
 }
 
+function mergeRecords(records) {
+  if (records.length === 0) return [];
+
+  const entries = [];
+  const keys = new Set();
+
+  for (const record of records) {
+    if (!isObject(record)) {
+      fail('INVALID_MERGE_TARGET', 'merge shape requires selected records to be objects');
+    }
+
+    for (const key of Object.keys(record)) {
+      if (keys.has(key)) {
+        fail('MERGE_CONFLICT', `merge shape found duplicate property ${JSON.stringify(key)}`);
+      }
+      keys.add(key);
+      entries.push([key, record[key]]);
+    }
+  }
+
+  return [Object.fromEntries(entries)];
+}
+
 function columnarizeRecords(records) {
   const shapedRecords = [];
 
@@ -271,6 +294,7 @@ function columnarizeRecords(records) {
 function shapeRecords(records, shape) {
   if (shape === undefined) return records;
   if (shape === 'columnar') return columnarizeRecords(records);
+  if (shape === 'merge') return mergeRecords(records);
   return expandRecords(records, shape);
 }
 
