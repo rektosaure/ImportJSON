@@ -181,13 +181,13 @@ function flattenObject(value, pointer, output, headers) {
   }
 }
 
-function selectRecords(document, query) {
+function selectNodes(document, query) {
   if (query === undefined) {
     if (Array.isArray(document)) {
       assertMaxRows(document.length);
-      return document;
+      return document.map((value, index) => ({ value, location: [index] }));
     }
-    return [document];
+    return [{ value: document, location: [] }];
   }
 
   if (typeof query !== 'string' || query.length === 0) {
@@ -197,12 +197,12 @@ function selectRecords(document, query) {
   const environment = createJSONPathEnvironment();
 
   try {
-    const records = [];
+    const nodes = [];
     for (const node of environment.query(query, document)) {
-      assertCanAppendRows(records.length, 1);
-      records.push(node.value);
+      assertCanAppendRows(nodes.length, 1);
+      nodes.push({ value: node.value, location: node.location });
     }
-    return records;
+    return nodes;
   } catch (error) {
     if (error?.code === 'LIMIT_EXCEEDED') throw error;
     fail('INVALID_JSONPATH', 'query is not a valid JSONPath expression');
@@ -235,24 +235,32 @@ function expandRecords(records, shape) {
   return shapedRecords;
 }
 
-function mergeRecords(records) {
-  if (records.length === 0) return [];
+function combineRecords(nodes) {
+  if (nodes.length === 0) return [];
 
+  const firstLocation = nodes[0].location;
+  if (firstLocation.length === 0 || typeof firstLocation[firstLocation.length - 1] !== 'string') {
+    fail('INVALID_COMBINE_TARGET', 'combine shape requires selected sibling object members');
+  }
+
+  const parentLocation = firstLocation.slice(0, -1);
   const entries = [];
   const keys = new Set();
 
-  for (const record of records) {
-    if (!isObject(record)) {
-      fail('INVALID_MERGE_TARGET', 'merge shape requires selected records to be objects');
+  for (const { value, location } of nodes) {
+    const key = location[location.length - 1];
+    const sameParent = location.length === parentLocation.length + 1
+      && parentLocation.every((part, index) => location[index] === part);
+
+    if (typeof key !== 'string' || !sameParent) {
+      fail('INVALID_COMBINE_TARGET', 'combine shape requires selected sibling object members');
+    }
+    if (keys.has(key)) {
+      fail('COMBINE_CONFLICT', `combine shape selected duplicate member ${JSON.stringify(key)}`);
     }
 
-    for (const key of Object.keys(record)) {
-      if (keys.has(key)) {
-        fail('MERGE_CONFLICT', `merge shape found duplicate property ${JSON.stringify(key)}`);
-      }
-      keys.add(key);
-      entries.push([key, record[key]]);
-    }
+    keys.add(key);
+    entries.push([key, value]);
   }
 
   return [Object.fromEntries(entries)];
@@ -291,10 +299,12 @@ function columnarizeRecords(records) {
   return shapedRecords;
 }
 
-function shapeRecords(records, shape) {
+function shapeRecords(nodes, shape) {
+  if (shape === 'combine') return combineRecords(nodes);
+
+  const records = nodes.map(({ value }) => value);
   if (shape === undefined) return records;
   if (shape === 'columnar') return columnarizeRecords(records);
-  if (shape === 'merge') return mergeRecords(records);
   return expandRecords(records, shape);
 }
 
@@ -352,7 +362,7 @@ export function jsonTextToTable(body, { query, columns, shape } = {}) {
   }
 
   assertMaxDepth(document);
-  const selection = selectRecords(document, query);
+  const selection = selectNodes(document, query);
   const records = shapeRecords(selection, shape);
   assertMaxRows(records.length);
 
