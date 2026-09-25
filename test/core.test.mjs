@@ -266,6 +266,61 @@ test('invalid pointer shape and non-array target fail explicitly', () => {
   );
 });
 
+test('merge shape combines selected objects into one logical row', () => {
+  assert.deepEqual(table({
+    profile: { name: 'Apple', country: 'US' },
+    details: { symbol: 'AAPL' },
+    dividends: { yield: '0.32%' },
+  }, { query: "$['profile','details','dividends']", shape: 'merge' }), {
+    headers: ['/country', '/name', '/symbol', '/yield'],
+    rows: [['US', 'Apple', 'AAPL', '0.32%']],
+  });
+});
+
+test('merge shape is shallow and explicit projection runs after merging', () => {
+  assert.deepEqual(table([
+    { nested: { a: 1 } },
+    { value: 2 },
+  ], { shape: 'merge', columns: ['/value', '/nested'] }), {
+    headers: ['/value', '/nested'],
+    rows: [[2, '{"a":1}']],
+  });
+});
+
+test('merge shape handles one object and an empty selection deterministically', () => {
+  assert.deepEqual(table({ a: 1 }, { shape: 'merge' }), {
+    headers: ['/a'],
+    rows: [[1]],
+  });
+
+  assert.deepEqual(table({ a: 1 }, { query: '$.missing[*]', shape: 'merge' }), {
+    headers: [],
+    rows: [],
+  });
+});
+
+test('merge shape rejects non-object records and duplicate direct properties', () => {
+  assert.throws(
+    () => table([{ a: 1 }, 2], { shape: 'merge' }),
+    (error) => error.code === 'INVALID_MERGE_TARGET',
+  );
+
+  assert.throws(
+    () => table([{ a: 1 }, { a: 1 }], { shape: 'merge' }),
+    (error) => error.code === 'MERGE_CONFLICT',
+  );
+});
+
+test('merge shape preserves __proto__ as a data property', () => {
+  assert.deepEqual(jsonTextToTable(
+    '{"left":{"__proto__":{"source":"api"}},"right":{"value":1}}',
+    { query: "$['left','right']", shape: 'merge' },
+  ), {
+    headers: ['/__proto__/source', '/value'],
+    rows: [['api', 1]],
+  });
+});
+
 test('columnar shape zips direct arrays by index and repeats non-array properties', () => {
   assert.deepEqual(table({
     ticker: 'AAPL',
