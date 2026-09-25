@@ -235,12 +235,12 @@ function expandRecords(records, shape) {
   return shapedRecords;
 }
 
-function preserveRecords(nodes) {
+function combineRecords(nodes) {
   if (nodes.length === 0) return [];
 
   const firstLocation = nodes[0].location;
   if (firstLocation.length === 0 || typeof firstLocation[firstLocation.length - 1] !== 'string') {
-    fail('INVALID_PRESERVE_TARGET', 'preserve shape requires selected sibling object members');
+    fail('INVALID_COMBINE_TARGET', 'combine shape requires selected sibling object members');
   }
 
   const parentLocation = firstLocation.slice(0, -1);
@@ -253,10 +253,10 @@ function preserveRecords(nodes) {
       && parentLocation.every((part, index) => location[index] === part);
 
     if (typeof key !== 'string' || !sameParent) {
-      fail('INVALID_PRESERVE_TARGET', 'preserve shape requires selected sibling object members');
+      fail('INVALID_COMBINE_TARGET', 'combine shape requires selected sibling object members');
     }
     if (keys.has(key)) {
-      fail('PRESERVE_CONFLICT', `preserve shape selected duplicate member ${JSON.stringify(key)}`);
+      fail('COMBINE_CONFLICT', `combine shape selected duplicate member ${JSON.stringify(key)}`);
     }
 
     keys.add(key);
@@ -300,7 +300,7 @@ function columnarizeRecords(records) {
 }
 
 function shapeRecords(nodes, shape) {
-  if (shape === 'preserve') return preserveRecords(nodes);
+  if (shape === 'combine') return combineRecords(nodes);
 
   const records = nodes.map(({ value }) => value);
   if (shape === undefined) return records;

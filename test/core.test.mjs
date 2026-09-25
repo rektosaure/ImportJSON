@@ -266,18 +266,18 @@ test('invalid pointer shape and non-array target fail explicitly', () => {
   );
 });
 
-test('preserve shape keeps selected sibling member names and duplicate child fields', () => {
+test('combine shape keeps selected sibling member names and duplicate child fields', () => {
   assert.deepEqual(table({
     profile: { name: 'Apple', cik: '0000320193' },
     details: { symbol: 'AAPL', cik: '0000320193' },
     dividends: { yield: '0.32%' },
-  }, { query: "$['profile','details','dividends']", shape: 'preserve' }), {
+  }, { query: "$['profile','details','dividends']", shape: 'combine' }), {
     headers: ['/details/cik', '/details/symbol', '/dividends/yield', '/profile/cik', '/profile/name'],
     rows: [['0000320193', 'AAPL', '0.32%', '0000320193', 'Apple']],
   });
 });
 
-test('preserve shape supports explicit projection after reconstructing sibling members', () => {
+test('combine shape supports explicit projection after reconstructing sibling members', () => {
   assert.deepEqual(table({
     company: {
       profile: { name: 'Apple' },
@@ -285,7 +285,7 @@ test('preserve shape supports explicit projection after reconstructing sibling m
     },
   }, {
     query: "$.company['profile','details']",
-    shape: 'preserve',
+    shape: 'combine',
     columns: ['/details/symbol', '/profile/name'],
   }), {
     headers: ['/details/symbol', '/profile/name'],
@@ -293,44 +293,44 @@ test('preserve shape supports explicit projection after reconstructing sibling m
   });
 });
 
-test('preserve shape keeps an empty selection empty', () => {
-  assert.deepEqual(table({ a: 1 }, { query: '$.missing[*]', shape: 'preserve' }), {
+test('combine shape keeps an empty selection empty', () => {
+  assert.deepEqual(table({ a: 1 }, { query: '$.missing[*]', shape: 'combine' }), {
     headers: [],
     rows: [],
   });
 });
 
-test('preserve shape rejects selections that are not sibling object members', () => {
+test('combine shape rejects selections that are not sibling object members', () => {
   assert.throws(
-    () => table({ a: 1 }, { query: '$', shape: 'preserve' }),
-    (error) => error.code === 'INVALID_PRESERVE_TARGET',
+    () => table({ a: 1 }, { query: '$', shape: 'combine' }),
+    (error) => error.code === 'INVALID_COMBINE_TARGET',
   );
 
   assert.throws(
     () => table({
       left: { a: 1 },
       right: { b: 2 },
-    }, { query: "$['left','right'].*", shape: 'preserve' }),
-    (error) => error.code === 'INVALID_PRESERVE_TARGET',
+    }, { query: "$['left','right'].*", shape: 'combine' }),
+    (error) => error.code === 'INVALID_COMBINE_TARGET',
   );
 
   assert.throws(
-    () => table([{ a: 1 }, { b: 2 }], { query: '$[*]', shape: 'preserve' }),
-    (error) => error.code === 'INVALID_PRESERVE_TARGET',
+    () => table([{ a: 1 }, { b: 2 }], { query: '$[*]', shape: 'combine' }),
+    (error) => error.code === 'INVALID_COMBINE_TARGET',
   );
 });
 
-test('preserve shape rejects duplicate selection of the same member', () => {
+test('combine shape rejects duplicate selection of the same member', () => {
   assert.throws(
-    () => table({ a: 1 }, { query: "$['a','a']", shape: 'preserve' }),
-    (error) => error.code === 'PRESERVE_CONFLICT',
+    () => table({ a: 1 }, { query: "$['a','a']", shape: 'combine' }),
+    (error) => error.code === 'COMBINE_CONFLICT',
   );
 });
 
-test('preserve shape preserves __proto__ as a data property', () => {
+test('combine shape preserves __proto__ as a data property', () => {
   assert.deepEqual(jsonTextToTable(
     '{"__proto__":{"source":"api"},"value":1}',
-    { query: "$['__proto__','value']", shape: 'preserve' },
+    { query: "$['__proto__','value']", shape: 'combine' },
   ), {
     headers: ['/__proto__/source', '/value'],
     rows: [['api', 1]],

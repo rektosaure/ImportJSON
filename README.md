@@ -44,7 +44,7 @@ That is the default experience: one URL in, rows and columns out.
 - **Simple by default** — common JSON APIs work with just `=IMPORTJSON(url)`.
 - **Precise when needed** — select records with standard JSONPath.
 - **Choose your columns** — project fields with standard JSON Pointer, directly or from a cell range.
-- **Handle nested data explicitly** — expand one nested array, reshape parallel arrays with `columnar`, or preserve selected sibling members with `preserve`.
+- **Handle nested data explicitly** — expand one nested array, reshape parallel arrays with `columnar`, or combine selected sibling members with `combine`.
 - **Authenticate directly** — send one complete HTTP `Authorization` header value to HTTPS APIs when needed.
 - **Avoid unnecessary requests** — eligible HTTP responses use a best-effort cache, with explicit modes for refreshing or bypassing it.
 - **Predictable by design** — deterministic output, versioned releases, automated tests, and real-runtime smoke checks.
@@ -88,7 +88,7 @@ IMPORTJSON(url, [query], [columns], [shape], [cache], [authorization])
 | `url` | The HTTP or HTTPS JSON endpoint. Authenticated requests require HTTPS. |
 | `query` | Select records with JSONPath. |
 | `columns` | Pick fields with JSON Pointer, or a one-dimensional range of pointers. |
-| `shape` | Expand one nested array, use `columnar` for parallel arrays, or `preserve` to keep selected sibling member names. |
+| `shape` | Expand one nested array, use `columnar` for parallel arrays, or `combine` to keep selected sibling member names. |
 | `cache` | Blank/`default` for normal caching, `refresh` for fresh data that updates the cache, or `off` to bypass cache interaction. |
 | `authorization` | Optional complete HTTP `Authorization` header value, such as `Bearer ...` or `Basic ...`. |
 
@@ -163,12 +163,12 @@ A        18       2024
 A        21       2025
 ```
 
-### Preserve selected sibling members
+### Combine selected sibling members
 
-When sibling members are parts of one logical record, select them with JSONPath and preserve their names explicitly:
+When sibling members are parts of one logical record, select them with JSONPath and combine them while retaining their names:
 
 ```gs
-=IMPORTJSON(A1, "$['profile','details']", , "preserve")
+=IMPORTJSON(A1, "$['profile','details']", , "combine")
 ```
 
 For a source containing both `profile.cik` and `details.cik`, the result keeps them distinct as `/profile/cik` and `/details/cik`.

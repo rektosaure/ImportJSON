@@ -483,7 +483,7 @@ test('origin freshness can shorten but not extend the 3600-second cache TTL', ()
   });
 });
 
-test('preserve shape flows through the public adapter', () => {
+test('combine shape flows through the public adapter', () => {
   withRuntime({
     body: '{"profile":{"name":"Apple","cik":"0000320193"},"details":{"symbol":"AAPL","cik":"0000320193"}}',
   }, () => {
@@ -491,7 +491,7 @@ test('preserve shape flows through the public adapter', () => {
       'https://example.test/data.json',
       "$['profile','details']",
       undefined,
-      'preserve',
+      'combine',
     ), [
       ['/details/cik', '/details/symbol', '/profile/cik', '/profile/name'],
       ['0000320193', 'AAPL', '0000320193', 'Apple'],

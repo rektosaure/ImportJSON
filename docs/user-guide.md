@@ -54,7 +54,7 @@ Google Sheets
 | `url` | Absolute HTTP or HTTPS URL returning one JSON document. A literal string or one cell is accepted. Authenticated requests require HTTPS. |
 | `query` | Optional RFC 9535 JSONPath expression. A literal string or one cell is accepted. |
 | `columns` | Optional non-empty RFC 6901 JSON Pointer, or a horizontal/vertical range of pointers. |
-| `shape` | Optional non-empty JSON Pointer identifying one array to expand, `"columnar"` for parallel arrays, or `"preserve"` to combine selected sibling members while keeping their names. |
+| `shape` | Optional non-empty JSON Pointer identifying one array to expand, `"columnar"` for parallel arrays, or `"combine"` to combine selected sibling members while keeping their names. |
 | `cache` | Optional cache mode: blank or `"default"` for normal cache behavior, `"refresh"` for fresh data that updates the cache, or `"off"` to bypass cache reads and writes. |
 | `authorization` | Optional complete HTTP `Authorization` header value. A literal string or one cell is accepted. |
 
@@ -68,7 +68,7 @@ Typical formulas:
 =IMPORTJSON(A1, "$.users[*]", D1:F1)
 =IMPORTJSON(A1, , , "/items")
 =IMPORTJSON(A1, , , "columnar")
-=IMPORTJSON(A1, "$['profile','details']", , "preserve")
+=IMPORTJSON(A1, "$['profile','details']", , "combine")
 =IMPORTJSON(A1, , , , "refresh")
 =IMPORTJSON(A1, , , , "off")
 =IMPORTJSON(A1, , , , B1)
@@ -250,7 +250,7 @@ An array or object that reaches a cell is serialized as compact deterministic JS
 
 ## `shape`
 
-`shape` performs at most one explicit structural transformation after selection and before projection. It is a non-empty JSON Pointer identifying one array, the literal `"columnar"`, or the literal `"preserve"`.
+`shape` performs at most one explicit structural transformation after selection and before projection. It is a non-empty JSON Pointer identifying one array, the literal `"columnar"`, or the literal `"combine"`.
 
 There is no automatic recursive array expansion or implicit Cartesian product.
 
@@ -289,9 +289,9 @@ Properties outside the target subtree repeat for each produced row. Nested array
 
 A missing or `null` target remains one row. An existing target that is not an array or `null` produces `INVALID_EXPANSION_TARGET`.
 
-### `preserve`: combine selected sibling members without losing their names
+### `combine`: combine selected sibling members without losing their names
 
-Use `preserve` when sibling members are parts of one logical record and their source names must remain visible. For example:
+Use `combine` when sibling members are parts of one logical record and their source names must remain visible. For example:
 
 ```json
 {
@@ -300,10 +300,10 @@ Use `preserve` when sibling members are parts of one logical record and their so
 }
 ```
 
-Select both members and preserve them before projection:
+Combine both members before projection:
 
 ```gs
-=IMPORTJSON(A1, "$['profile','details']", , "preserve")
+=IMPORTJSON(A1, "$['profile','details']", , "combine")
 ```
 
 Result:
@@ -313,7 +313,7 @@ Result:
 0000320193      AAPL               0000320193      Apple
 ```
 
-Every selected node must be a named member of the same parent object. The selected member names become direct properties of one logical row, and their values remain unchanged until normal projection and flattening. Duplicate selection of the same member produces `PRESERVE_CONFLICT`. An empty selection remains empty.
+Every selected node must be a named member of the same parent object. The selected member names become direct properties of one logical row, and their values remain unchanged until normal projection and flattening. Duplicate selection of the same member produces `COMBINE_CONFLICT`. An empty selection remains empty.
 
 ### `columnar`: object of parallel arrays
 
@@ -367,7 +367,7 @@ Google Apps Script and Google Sheets platform limits still apply independently a
 
 **Expecting arrays to expand automatically.** Arrays remain structured values unless `shape` explicitly expands one array or `columnar` uses direct arrays as the row axis.
 
-**Expecting selected sibling members to be combined automatically.** Use `shape="preserve"` explicitly when their source member names must remain part of the output paths.
+**Expecting selected sibling members to be combined automatically.** Use `shape="combine"` explicitly when their source member names must remain part of the output paths.
 
 **Treating `$` as omitted query on an array root.** `$` selects the root array itself; omitted `query` selects its elements as records.
 

@@ -195,7 +195,7 @@ Strings MUST be preserved without implicit trimming or date conversion. Booleans
 After omission normalization, a supplied `shape` MUST resolve to one non-empty string containing exactly one of:
 
 - `columnar`;
-- `preserve`; or
+- `combine`; or
 - a non-empty RFC 6901 JSON Pointer relative to each selected record.
 
 Any other form produces `INVALID_ARGUMENT`.
@@ -252,20 +252,20 @@ Only direct array properties of the selected object participate in `columnar`. A
 
 Automatic projection derives columns only from produced logical rows. If matching direct arrays are empty and therefore produce no rows, automatic projection has no schema.
 
-### 11.2 `preserve`
+### 11.2 `combine`
 
-`preserve` explicitly combines selected sibling object members into one logical record while retaining each selected member name.
+`combine` explicitly combines selected sibling object members into one logical record while retaining each selected member name.
 
 - an empty selection produces zero logical rows;
-- every selected node MUST be a named member of an object, otherwise the invocation produces `INVALID_PRESERVE_TARGET`;
-- all selected nodes MUST have the same parent location, otherwise the invocation produces `INVALID_PRESERVE_TARGET`;
-- selected member names MUST be unique, otherwise the invocation produces `PRESERVE_CONFLICT`;
+- every selected node MUST be a named member of an object, otherwise the invocation produces `INVALID_COMBINE_TARGET`;
+- all selected nodes MUST have the same parent location, otherwise the invocation produces `INVALID_COMBINE_TARGET`;
+- selected member names MUST be unique, otherwise the invocation produces `COMBINE_CONFLICT`;
 - one or more selected members produce exactly one logical row whose direct properties are the selected member names;
 - each selected member value is copied unchanged, so nested objects and arrays remain under that member name until normal projection and flattening.
 
 The common parent path itself is not copied into the logical row. For example, selecting `$.company['profile','details']` produces a logical row with direct properties `profile` and `details`. Normal projection therefore exposes paths such as `/profile/cik` and `/details/cik`.
 
-`preserve` MUST NOT be activated heuristically and MUST NOT apply a second shaping operation.
+`combine` MUST NOT be activated heuristically and MUST NOT apply a second shaping operation.
 
 ## 12. `cache`
 
@@ -324,8 +324,8 @@ INVALID_JSONPATH
 INVALID_EXPANSION_TARGET
 INVALID_COLUMNAR_TARGET
 COLUMN_LENGTH_MISMATCH
-INVALID_PRESERVE_TARGET
-PRESERVE_CONFLICT
+INVALID_COMBINE_TARGET
+COMBINE_CONFLICT
 LIMIT_EXCEEDED
 ```
 
@@ -335,7 +335,7 @@ LIMIT_EXCEEDED
 
 `INVALID_COLUMNAR_TARGET` means that `columnar` received a selected record that is not an object or has no direct array property. `COLUMN_LENGTH_MISMATCH` means sibling direct arrays in one selected `columnar` record have unequal lengths.
 
-`INVALID_PRESERVE_TARGET` means that `preserve` received a selection that is not made exclusively of named members sharing one parent object. `PRESERVE_CONFLICT` means the same sibling member name appears more than once in the selection.
+`INVALID_COMBINE_TARGET` means that `combine` received a selection that is not made exclusively of named members sharing one parent object. `COMBINE_CONFLICT` means the same sibling member name appears more than once in the selection.
 
 `LIMIT_EXCEEDED` means an ImportJSON resource limit defined in Section 15 was exceeded. ImportJSON MUST fail rather than silently truncate the response, selection, rows, columns, or rendered table.
 
