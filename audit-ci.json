@@ -1,0 +1,13 @@
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "high": true,
+  "allowlist": [
+    {
+      "GHSA-vfj7-8cjw-p6xm": {
+        "active": true,
+        "notes": "Temporary exception for braces (dev-only dependency via @google/clasp -> micromatch); review GHSA-vfj7-8cjw-p6xm before expiration.",
+        "expiry": "2026-11-21"
+      }
+    }
+  ]
+}
