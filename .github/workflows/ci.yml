@@ -19,5 +19,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npx --yes audit-ci@^7 --config ./audit-ci.json
+      # PRs are gated by Dependency Review for newly introduced vulnerabilities.
+      # Audit the full dependency tree on main without blocking remediation PRs
+      # for vulnerabilities that already exist on the base branch.
+      - name: Audit full dependency tree on main
+        if: github.event_name == 'push'
+        run: npx --yes audit-ci@^7 --config ./audit-ci.json
       - run: npm test
