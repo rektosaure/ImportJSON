@@ -19,5 +19,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      - name: Audit dependencies (one time-limited advisory exception)
+        run: npx --yes audit-ci@7.1.0 --config ./audit-ci.json
       - run: npm test

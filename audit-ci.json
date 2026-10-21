@@ -1,0 +1,14 @@
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "high": true,
+  "package-manager": "npm",
+  "allowlist": [
+    {
+      "GHSA-vfj7-8cjw-p6xm": {
+        "active": true,
+        "expiry": "2026-11-21",
+        "notes": "Temporary risk acceptance for braces through devDependency @google/clasp > micromatch. Reassess by expiry; clasp also runs during privileged Apps Script publishing."
+      }
+    }
+  ]
+}

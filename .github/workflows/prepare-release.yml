@@ -99,7 +99,7 @@ jobs:
 
       - name: Validate release candidate
         run: |
-          npm audit --audit-level=high
+          npx --yes audit-ci@7.1.0 --config ./audit-ci.json
           npm test
 
   open-pr:
@@ -196,7 +196,7 @@ jobs:
             echo
             echo "## Validation"
             echo
-            echo "- [x] \`npm audit --audit-level=high\`"
+            echo "- [x] \`audit-ci@7.1.0\` (high/critical; GHSA-vfj7-8cjw-p6xm temporarily allowlisted)"
             echo "- [x] \`npm test\`"
             echo "- [ ] Required pull-request workflows approved and green"
             echo "- [ ] Merge with **Create a merge commit**"
